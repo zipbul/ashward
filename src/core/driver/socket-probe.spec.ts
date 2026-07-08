@@ -1,114 +1,126 @@
-import { test, expect, beforeEach, afterEach } from 'bun:test';
-import { createServer, type Server, type Socket } from 'node:net';
+import { test, expect } from 'bun:test';
+import { EventEmitter } from 'node:events';
+
+import type { ProbeInput, ProbeSocket } from './interfaces';
+import type { Connector } from './types';
 
 import { TerminationCause } from './enums';
 import { probe } from './socket-probe';
 
-/**
- * A controlled raw TCP server is the driver's real outside-world collaborator.
- * Each test wires a fresh handler that decides how the peer behaves on the wire.
- */
-let server: Server;
-let port: number;
+/** A controllable socket: the probe attaches listeners synchronously, then the test emits. */
+class FakeSocket extends EventEmitter implements ProbeSocket {
+  written: Uint8Array | null = null;
+  destroyed = false;
+  timeoutMs = 0;
 
-async function listen(onConn: (socket: Socket) => void): Promise<void> {
-  server = createServer(onConn);
-  return new Promise(resolve => {
-    server.listen(0, '127.0.0.1', () => {
-      port = (server.address() as { port: number }).port;
-      resolve();
-    });
-  });
+  setTimeout(timeoutMs: number): void {
+    this.timeoutMs = timeoutMs;
+  }
+
+  write(data: Uint8Array): void {
+    this.written = data;
+  }
+
+  destroy(): void {
+    this.destroyed = true;
+  }
 }
 
-beforeEach(() => {
-  // fresh handle per test; the listen() call in each test installs the behavior
+const INPUT: ProbeInput = {
+  host: '127.0.0.1',
+  port: 1,
+  bytes: new TextEncoder().encode('GET / HTTP/1.1\r\nHost: t\r\n\r\n'),
+  timeoutMs: 500,
+};
+
+const connectorFor =
+  (socket: FakeSocket): Connector =>
+  () =>
+    socket;
+
+const errno = (code: string): NodeJS.ErrnoException => Object.assign(new Error(code), { code });
+
+test('writes the request bytes once connected', () => {
+  const socket = new FakeSocket();
+  void probe(INPUT, connectorFor(socket));
+  socket.emit('connect');
+  expect(socket.written).toBe(INPUT.bytes);
 });
 
-afterEach(() => {
-  server?.close();
+test('arms the socket timeout with the configured budget', () => {
+  const socket = new FakeSocket();
+  void probe(INPUT, connectorFor(socket));
+  expect(socket.timeoutMs).toBe(500);
 });
 
-const REQUEST = new TextEncoder().encode('GET / HTTP/1.1\r\nHost: t\r\n\r\n');
-
-test('captures the full response bytes the peer sends before FIN', async () => {
-  await listen(socket => {
-    socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n');
-  });
-
-  const result = await probe({ host: '127.0.0.1', port, bytes: REQUEST, timeoutMs: 500 });
-
-  expect(new TextDecoder().decode(result.response)).toBe('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n');
+test('captures the full response bytes received before FIN', async () => {
+  const socket = new FakeSocket();
+  const promise = probe(INPUT, connectorFor(socket));
+  socket.emit('data', Buffer.from('HTTP/1.1 400 Bad Request\r\n\r\n'));
+  socket.emit('end');
+  const result = await promise;
+  expect(new TextDecoder().decode(result.response)).toBe('HTTP/1.1 400 Bad Request\r\n\r\n');
 });
 
-test('reports fin termination when the peer half-closes cleanly', async () => {
-  await listen(socket => {
-    socket.end('HTTP/1.1 200 OK\r\n\r\n');
-  });
-
-  const result = await probe({ host: '127.0.0.1', port, bytes: REQUEST, timeoutMs: 500 });
-
-  expect(result.termination).toBe(TerminationCause.Fin);
-});
-
-// SKIP: Bun's node:net resetAndDestroy() emits a clean FIN (verified: 'end', hadError=false),
-// not a TCP RST, so an in-process fixture can't trigger the ECONNRESET path. The 'rst' branch
-// stays in the driver for real peers (proxies do send RSTs). Follow-up: cover it with a raw
-// SO_LINGER=0 socket source or an integration fixture once one exists.
-test.skip('reports rst termination when the peer aborts the connection', async () => {
-  await listen(socket => {
-    socket.resetAndDestroy();
-  });
-
-  const result = await probe({ host: '127.0.0.1', port, bytes: REQUEST, timeoutMs: 500 });
-
-  expect(result.termination).toBe(TerminationCause.Rst);
-});
-
-test('reports timeout termination when the peer never responds', async () => {
-  await listen(() => {
-    // accept and hang: never write, never close
-  });
-
-  const result = await probe({ host: '127.0.0.1', port, bytes: REQUEST, timeoutMs: 100 });
-
-  expect(result.termination).toBe(TerminationCause.Timeout);
-});
-
-test('returns empty response when the peer times out without sending bytes', async () => {
-  await listen(() => {
-    // hang
-  });
-
-  const result = await probe({ host: '127.0.0.1', port, bytes: REQUEST, timeoutMs: 100 });
-
-  expect(result.response.length).toBe(0);
+test('reports fin termination on a clean half-close', async () => {
+  const socket = new FakeSocket();
+  const promise = probe(INPUT, connectorFor(socket));
+  socket.emit('end');
+  expect((await promise).termination).toBe(TerminationCause.Fin);
 });
 
 test('accumulates a response delivered across multiple chunks', async () => {
-  await listen(socket => {
-    socket.write('HTTP/1.1 200 OK\r\n');
-    setTimeout(() => socket.end('Content-Length: 0\r\n\r\n'), 10);
-  });
-
-  const result = await probe({ host: '127.0.0.1', port, bytes: REQUEST, timeoutMs: 500 });
-
-  expect(new TextDecoder().decode(result.response)).toBe('HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n');
+  const socket = new FakeSocket();
+  const promise = probe(INPUT, connectorFor(socket));
+  socket.emit('data', Buffer.from('HTTP/1.1 200 OK\r\n'));
+  socket.emit('data', Buffer.from('Content-Length: 0\r\n\r\n'));
+  socket.emit('end');
+  expect(new TextDecoder().decode((await promise).response)).toBe('HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n');
 });
 
-test('rejects when the connection is refused', async () => {
-  // Bind then immediately release a port so nothing is listening on it.
-  const throwaway = createServer();
-  const deadPort = await new Promise<number>(resolve => {
-    throwaway.listen(0, '127.0.0.1', () => {
-      const p = (throwaway.address() as { port: number }).port;
-      throwaway.close(() => {
-        resolve(p);
-      });
-    });
-  });
-  // A no-op listen() so afterEach has a server to close.
-  await listen(() => {});
+test('reports timeout termination when the socket times out', async () => {
+  const socket = new FakeSocket();
+  const promise = probe(INPUT, connectorFor(socket));
+  socket.emit('timeout');
+  expect((await promise).termination).toBe(TerminationCause.Timeout);
+});
 
-  await expect(probe({ host: '127.0.0.1', port: deadPort, bytes: REQUEST, timeoutMs: 300 })).rejects.toThrow();
+test('returns an empty response on timeout with no bytes received', async () => {
+  const socket = new FakeSocket();
+  const promise = probe(INPUT, connectorFor(socket));
+  socket.emit('timeout');
+  expect((await promise).response.length).toBe(0);
+});
+
+test('reports rst termination on ECONNRESET', async () => {
+  const socket = new FakeSocket();
+  const promise = probe(INPUT, connectorFor(socket));
+  socket.emit('error', errno('ECONNRESET'));
+  expect((await promise).termination).toBe(TerminationCause.Rst);
+});
+
+test('reports rst termination on EPIPE', async () => {
+  const socket = new FakeSocket();
+  const promise = probe(INPUT, connectorFor(socket));
+  socket.emit('error', errno('EPIPE'));
+  expect((await promise).termination).toBe(TerminationCause.Rst);
+});
+
+test('rejects on a non-termination socket error such as ECONNREFUSED', async () => {
+  const socket = new FakeSocket();
+  const promise = probe(INPUT, connectorFor(socket));
+  socket.emit('error', errno('ECONNREFUSED'));
+  const outcome = await promise.then(
+    () => null,
+    (error: unknown) => error,
+  );
+  expect(outcome).toBeInstanceOf(Error);
+});
+
+test('destroys the socket once settled', async () => {
+  const socket = new FakeSocket();
+  const promise = probe(INPUT, connectorFor(socket));
+  socket.emit('end');
+  await promise;
+  expect(socket.destroyed).toBe(true);
 });

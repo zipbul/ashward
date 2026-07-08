@@ -14,3 +14,16 @@ export interface ProbeResult {
   readonly response: Uint8Array;
   readonly termination: TerminationCause;
 }
+
+/** The minimal socket surface the probe drives — satisfied by node's net.Socket and by a
+ *  test fake, so termination branches (including RST) are deterministically coverable. */
+export interface ProbeSocket {
+  setTimeout(timeoutMs: number): void;
+  write(data: Uint8Array): void;
+  destroy(): void;
+  on(event: 'connect', listener: () => void): void;
+  on(event: 'data', listener: (chunk: Buffer) => void): void;
+  on(event: 'end', listener: () => void): void;
+  on(event: 'timeout', listener: () => void): void;
+  on(event: 'error', listener: (error: NodeJS.ErrnoException) => void): void;
+}

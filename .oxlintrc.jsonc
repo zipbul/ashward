@@ -176,19 +176,13 @@
     {
       "files": ["**/*.spec.ts", "**/*.test.ts", "**/*.e2e.test.ts"],
       "rules": {
-        // Test-double idioms: mock stubs return canned data without await; fixtures cast
-        // node address() and thrown errors to their known concrete type; predicate callbacks
-        // use &&. All are noise in test code, not in shipped source.
-        "typescript/require-await": "off",
-        "typescript/no-unsafe-type-assertion": "off",
-        "typescript/no-confusing-void-expression": "off",
-        "typescript/await-thenable": "off",
         "jest/consistent-test-it": "error",
         "jest/expect-expect": "error",
         "jest/max-expects": "error",
         "jest/max-nested-describe": "error",
         "jest/no-commented-out-tests": "error",
         "jest/no-conditional-expect": "error",
+        "jest/no-conditional-in-test": "error",
         "jest/no-confusing-set-timeout": "error",
         "jest/no-disabled-tests": "error",
         "jest/no-focused-tests": "error",

@@ -10,6 +10,19 @@ import { assertConformance } from './assert-conformance';
 
 const clause = (verdict: Verdict): ClauseResult => ({ ruleId: Rule.DuplicateContentLength, verdict });
 
+/** Run `assertConformance` and return the thrown AshwardError, narrowed without a cast. */
+function captureAshwardError(run: () => void): AshwardError {
+  try {
+    run();
+  } catch (error) {
+    if (error instanceof AshwardError) {
+      return error;
+    }
+    throw error;
+  }
+  throw new Error('expected assertConformance to throw an AshwardError');
+}
+
 test('does not throw when the report is ok', () => {
   const report = buildReport([clause(Verdict.Pass)]);
   expect(() => {
@@ -47,10 +60,8 @@ test('throws for an inconclusive result when handling is Fail', () => {
 
 test('the thrown error carries only the blocking results', () => {
   const report = buildReport([clause(Verdict.Pass), clause(Verdict.Fail)]);
-  try {
+  const error = captureAshwardError(() => {
     assertConformance(report);
-    expect.unreachable();
-  } catch (error) {
-    expect((error as AshwardError).results).toEqual([clause(Verdict.Fail)]);
-  }
+  });
+  expect(error.results).toEqual([clause(Verdict.Fail)]);
 });

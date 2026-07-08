@@ -2,6 +2,8 @@ import { createServer, type Socket } from 'node:net';
 
 import type { RawOrigin } from './interfaces';
 
+import { portFromAddress } from './address';
+
 /**
  * A raw TCP origin that replies with a fixed response regardless of the request framing.
  * It models both halves of the acceptance bar: a permissive/vulnerable origin (canned 2xx,
@@ -14,15 +16,10 @@ export async function startRawOrigin(cannedResponse: string): Promise<RawOrigin>
     });
   });
 
-  return new Promise((resolve, reject) => {
+  return new Promise(resolve => {
     server.listen(0, '127.0.0.1', () => {
-      const address = server.address();
-      if (address === null || typeof address === 'string') {
-        reject(new Error('ashward testkit: expected a bound TCP address'));
-        return;
-      }
       resolve({
-        port: address.port,
+        port: portFromAddress(server.address()),
         close: async () =>
           new Promise(done => {
             server.close(() => {

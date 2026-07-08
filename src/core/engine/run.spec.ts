@@ -7,13 +7,13 @@ import { Rule, Verdict } from '../contract/enums';
 import { TerminationCause } from '../driver/enums';
 import { runRulesWithProbe } from './run';
 
-const stubProbe: ProbeFn = async () => ({ response: new Uint8Array(), termination: TerminationCause.Fin });
+const stubProbe: ProbeFn = async () => Promise.resolve({ response: new Uint8Array(), termination: TerminationCause.Fin });
 
 const fakeRule = (verdict: Verdict): RuleDef => ({
   id: Rule.DuplicateContentLength,
   normative: [],
   async run(): Promise<{ ruleId: Rule; verdict: Verdict }> {
-    return { ruleId: Rule.DuplicateContentLength, verdict };
+    return Promise.resolve({ ruleId: Rule.DuplicateContentLength, verdict });
   },
 });
 
@@ -40,7 +40,7 @@ test('hands the provided probe to each rule', async () => {
     normative: [],
     async run(context: RuleContext) {
       received = context.probe;
-      return { ruleId: Rule.DuplicateContentLength, verdict: Verdict.Pass };
+      return Promise.resolve({ ruleId: Rule.DuplicateContentLength, verdict: Verdict.Pass });
     },
   };
   await runRulesWithProbe(stubProbe, [capturingRule]);

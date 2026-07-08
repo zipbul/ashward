@@ -13,7 +13,7 @@ const bytes = (s: string): Uint8Array => new TextEncoder().encode(s);
 const probeReturning =
   (result: ProbeResult): ProbeFn =>
   async () =>
-    result;
+    Promise.resolve(result);
 
 const response = (raw: string, termination: TerminationCause): ProbeResult => ({
   response: bytes(raw),
@@ -63,7 +63,7 @@ test('sends a request carrying two divergent Content-Length header lines', async
   let sent = '';
   const probe: ProbeFn = async b => {
     sent = new TextDecoder().decode(b);
-    return response('HTTP/1.1 200 OK\r\n\r\n', TerminationCause.Fin);
+    return Promise.resolve(response('HTTP/1.1 200 OK\r\n\r\n', TerminationCause.Fin));
   };
   await duplicateContentLength.run({ probe });
   const clHeaders = sent.split('\r\n').filter(line => /^Content-Length:/i.test(line));
@@ -76,9 +76,9 @@ test('carries the sent request and received response as evidence', async () => {
   expect(new TextDecoder().decode(result.evidence!.response)).toBe('HTTP/1.1 200 OK\r\n\r\n');
 });
 
-test('cites RFC 9112 §6.3 as a normative source', async () => {
-  const cited = duplicateContentLength.normative.some(ref => ref.doc.code === 'RFC 9112' && ref.locator.value === '6.3');
-  expect(cited).toBe(true);
+test('cites RFC 9112 §6.3 as a normative source', () => {
+  const ref = duplicateContentLength.normative.find(source => source.locator.value === '6.3');
+  expect(ref?.doc.code).toBe('RFC 9112');
 });
 
 test('is tagged with CWE-444 (HTTP request smuggling)', () => {

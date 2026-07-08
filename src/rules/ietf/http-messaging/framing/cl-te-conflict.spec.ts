@@ -11,7 +11,7 @@ const bytes = (s: string): Uint8Array => new TextEncoder().encode(s);
 const probeReturning =
   (result: ProbeResult): ProbeFn =>
   async () =>
-    result;
+    Promise.resolve(result);
 const response = (raw: string, termination: TerminationCause): ProbeResult => ({
   response: bytes(raw),
   termination,
@@ -39,7 +39,7 @@ test('sends a request carrying both Content-Length and Transfer-Encoding', async
   let sent = '';
   const probe: ProbeFn = async b => {
     sent = new TextDecoder().decode(b);
-    return response('HTTP/1.1 200 OK\r\n\r\n', TerminationCause.Fin);
+    return Promise.resolve(response('HTTP/1.1 200 OK\r\n\r\n', TerminationCause.Fin));
   };
   await clTeConflict.run({ probe });
   expect(sent).toMatch(/^Content-Length:/im);
@@ -47,6 +47,6 @@ test('sends a request carrying both Content-Length and Transfer-Encoding', async
 });
 
 test('cites RFC 9112 §6.1 as a normative source', () => {
-  const cited = clTeConflict.normative.some(ref => ref.doc.code === 'RFC 9112' && ref.locator.value === '6.1');
-  expect(cited).toBe(true);
+  const ref = clTeConflict.normative.find(source => source.locator.value === '6.1');
+  expect(ref?.doc.code).toBe('RFC 9112');
 });
