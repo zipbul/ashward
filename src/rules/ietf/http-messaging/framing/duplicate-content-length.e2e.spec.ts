@@ -1,13 +1,15 @@
 import { test, expect } from 'bun:test';
-import { duplicateContentLength } from './duplicate-content-length';
+
+import type { ProbeFn } from '../../../../core/contract/types';
+
 import { Verdict } from '../../../../core/contract/enums';
 import { probe as sendProbe } from '../../../../core/driver/socket-probe';
 import { startRawOrigin } from '../../../../testkit/origin/raw-origin';
-import type { ProbeFn } from '../../../../core/contract/types';
+import { duplicateContentLength } from './duplicate-content-length';
 
 const boundProbe =
   (port: number): ProbeFn =>
-  (bytes) =>
+  async bytes =>
     sendProbe({ host: '127.0.0.1', port, bytes, timeoutMs: 500 });
 
 test('flags a permissive origin that accepts duplicate Content-Length over a real socket', async () => {

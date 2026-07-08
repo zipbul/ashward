@@ -9,12 +9,7 @@ import { defineFramingRule } from './framing-rule';
  * refused it (conformant) or processed it (the parser discrepancy behind CL.TE smuggling).
  */
 const REQUEST = new TextEncoder().encode(
-  'POST / HTTP/1.1\r\n' +
-    'Host: ashward.test\r\n' +
-    'Content-Length: 6\r\n' +
-    'Content-Length: 5\r\n' +
-    '\r\n' +
-    'HELLO\n',
+  'POST / HTTP/1.1\r\n' + 'Host: ashward.test\r\n' + 'Content-Length: 6\r\n' + 'Content-Length: 5\r\n' + '\r\n' + 'HELLO\n',
 );
 
 export const duplicateContentLength = defineFramingRule({

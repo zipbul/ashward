@@ -1,4 +1,5 @@
 import { test, expect } from 'bun:test';
+
 import { RFC9112, RFC9110 } from './constants';
 import { StandardsBody } from './enums';
 

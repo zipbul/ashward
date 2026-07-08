@@ -1,14 +1,17 @@
 import { test, expect } from 'bun:test';
 import { connect } from 'node:net';
+
 import { startRawOrigin } from './raw-origin';
 
 /** Read a full response from the raw origin over a real socket. */
-function fetchRaw(port: number, request: string): Promise<string> {
+async function fetchRaw(port: number, request: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     const socket = connect({ host: '127.0.0.1', port }, () => socket.write(request));
     socket.on('data', (chunk: Buffer) => chunks.push(chunk));
-    socket.on('end', () => resolve(Buffer.concat(chunks).toString()));
+    socket.on('end', () => {
+      resolve(Buffer.concat(chunks).toString());
+    });
     socket.on('error', reject);
   });
 }

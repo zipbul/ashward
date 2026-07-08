@@ -1,4 +1,5 @@
 import { test, expect } from 'bun:test';
+
 import { parseStatusLine } from './head-lex';
 
 const bytes = (s: string): Uint8Array => new TextEncoder().encode(s);

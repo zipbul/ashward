@@ -1,4 +1,5 @@
 import { createServer, type Socket } from 'node:net';
+
 import type { RawOrigin } from './interfaces';
 
 /**
@@ -6,17 +7,28 @@ import type { RawOrigin } from './interfaces';
  * It models both halves of the acceptance bar: a permissive/vulnerable origin (canned 2xx,
  * i.e. it "accepted" a malformed frame) and a conformant one (canned 4xx / connection close).
  */
-export function startRawOrigin(cannedResponse: string): Promise<RawOrigin> {
+export async function startRawOrigin(cannedResponse: string): Promise<RawOrigin> {
   const server = createServer((socket: Socket) => {
-    socket.on('data', () => socket.end(cannedResponse));
+    socket.on('data', () => {
+      socket.end(cannedResponse);
+    });
   });
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     server.listen(0, '127.0.0.1', () => {
-      const port = (server.address() as { port: number }).port;
+      const address = server.address();
+      if (address === null || typeof address === 'string') {
+        reject(new Error('ashward testkit: expected a bound TCP address'));
+        return;
+      }
       resolve({
-        port,
-        close: () => new Promise((done) => server.close(() => done())),
+        port: address.port,
+        close: async () =>
+          new Promise(done => {
+            server.close(() => {
+              done();
+            });
+          }),
       });
     });
   });

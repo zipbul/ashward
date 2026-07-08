@@ -21,8 +21,6 @@ const REQUEST = new TextEncoder().encode(
 export const clTeConflict = defineFramingRule({
   id: Rule.ClTeConflict,
   request: REQUEST,
-  normative: [
-    { doc: RFC9112, locator: { kind: LocatorKind.Section, value: '6.1' }, req: ReqLevel.Must },
-  ],
+  normative: [{ doc: RFC9112, locator: { kind: LocatorKind.Section, value: '6.1' }, req: ReqLevel.Must }],
   tags: { cwe: ['CWE-444'] },
 });

@@ -1,7 +1,9 @@
 import { test, expect } from 'bun:test';
-import { AshwardError } from './ashward-error';
-import { Rule, Verdict } from '../contract/enums';
+
 import type { ClauseResult } from '../contract/interfaces';
+
+import { Rule, Verdict } from '../contract/enums';
+import { AshwardError } from './ashward-error';
 
 const fail: ClauseResult = { ruleId: Rule.DuplicateContentLength, verdict: Verdict.Fail };
 

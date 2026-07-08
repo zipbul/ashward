@@ -1,7 +1,7 @@
-import type { Rule, Verdict, InconclusiveReason } from './enums';
-import type { TerminationCause } from '../driver/enums';
-import type { ProbeFn } from './types';
 import type { NormativeRef, Taxonomy } from '../../standards/interfaces';
+import type { TerminationCause } from '../driver/enums';
+import type { Rule, Verdict, InconclusiveReason } from './enums';
+import type { ProbeFn } from './types';
 
 /** The exact bytes a rule sent and what came back — carried on every result for the report. */
 export interface Evidence {

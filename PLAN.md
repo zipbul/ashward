@@ -18,19 +18,20 @@ crucible은 **테스트 서포트 라이브러리**다. supertest가 "요청을 
 ## 2. 소비자 UX (설계 목표 — 이 짧음을 지킨다)
 
 ```ts
-import { crucible } from 'crucible'
-import { http11 } from 'crucible/packs/http11'
-import { test } from 'bun:test'
+import { crucible } from 'crucible';
+import { http11 } from 'crucible/packs/http11';
+import { test } from 'bun:test';
 
-crucible(test)                         // 소비자 러너 주입
-  .target(() => Bun.serve({ fetch: myHandler }))   // 피검 서버 기동자
-  .use(http11)                         // 내장 규칙팩 선언
-  .fixtures({                          // 픽스처 엔드포인트 매핑(의미론 규칙용)
+crucible(test) // 소비자 러너 주입
+  .target(() => Bun.serve({ fetch: myHandler })) // 피검 서버 기동자
+  .use(http11) // 내장 규칙팩 선언
+  .fixtures({
+    // 픽스처 엔드포인트 매핑(의미론 규칙용)
     resource: '/items/1',
     protected: '/admin',
     sse: '/events',
   })
-  .run()                               // 규칙별 test()가 러너에 주입되어 실행
+  .run(); // 규칙별 test()가 러너에 주입되어 실행
 ```
 
 소비자가 작성하는 것: **규칙팩 선언 + 픽스처 매핑 몇 줄.** 요청 생성·전송·판정·조항 추적은 전부 패키지.
@@ -62,26 +63,32 @@ crucible/
 ## 4. 규칙팩 = 내장 데이터
 
 ### 4.1 소스와 빌드
+
 규칙 정본은 STANDARDS.md(현 어댑터 235 규칙)지만, **소비자에게는 빌드된 `rules.json`으로 배포**한다. STANDARDS.md → rules.json 변환은 crucible 빌드 단계.
 
 입력 문법(확정): `- **§<섹션>.<항목>.<연번>** [<수준>] <문장> [<출처>]`
 
 ### 4.2 파서 (리뷰 지적 HIGH-2 반영: sources 추출 알고리즘 명시)
+
 출처 대괄호 파싱은 정규식 한 줄로 불가 — `·` 과부하 때문. 상태 파서 규약:
+
 - 대괄호 내부를 `·`로 1차 분할(단, en-dash `–` 범위는 분할 금지)
 - 각 토큰: `RFC N §S`(std+section) / `§S`(직전 std 이월) / `RFC N`(section=null) / `RFC N §A–§B`(범위)
 - 결과: `sources: { std, section|null, range?: [a,b] }[]`
 - **불변식 명문화**: statement에 리터럴 `[`·`]` 금지(STANDARDS.md 포맷 규격에 추가). 파서가 이 전제로 마지막 `[...]`를 출처로 분리.
 
 ### 4.3 매니페스트
+
 ```ts
 interface Rule {
-  id: string        // "http11:1.2.1"
-  pack: string; code: string
-  level: 'MUST'|'MUST NOT'|'SHOULD'|'SHOULD NOT'|'MAY'|'NONE'   // 무표기→NONE (리뷰 R2: 언어중립 토큰)
-  statement_ko: string; statement_en: string                    // 리뷰 R2: 영어 병기
-  sources: { std: string; section: string|null; range?: [string,string] }[]
-  scoring: 'fail'|'warn'|'info'|'exclude'   // MUST*→fail, SHOULD*→warn, MAY→info, NONE→exclude
+  id: string; // "http11:1.2.1"
+  pack: string;
+  code: string;
+  level: 'MUST' | 'MUST NOT' | 'SHOULD' | 'SHOULD NOT' | 'MAY' | 'NONE'; // 무표기→NONE (리뷰 R2: 언어중립 토큰)
+  statement_ko: string;
+  statement_en: string; // 리뷰 R2: 영어 병기
+  sources: { std: string; section: string | null; range?: [string, string] }[];
+  scoring: 'fail' | 'warn' | 'info' | 'exclude'; // MUST*→fail, SHOULD*→warn, MAY→info, NONE→exclude
 }
 ```
 
@@ -102,6 +109,7 @@ interface Rule {
 ## 7. 픽스처 오염 방지 (리뷰 R1·MEDIUM-1 반영)
 
 의미론 규칙은 픽스처 앱 협조 필요 → 소비자 부담 = 채택 장벽. 완화:
+
 - **무픽스처 규칙을 기본**으로: framing(§1)·응답 정합(§2 다수)·연결(§10)은 픽스처 0. `.run()` 기본이 이것만 돌린다.
 - **의미론 규칙은 opt-in**: 소비자가 `.fixtures({...})`로 엔드포인트를 매핑한 규칙만 활성. 매핑 안 하면 그 규칙은 `skip(no-fixture)`로 정직하게 표시(침묵 통과 아님).
 - **픽스처 계약을 바이트 단위 규약화**: 픽스처 엔드포인트가 반드시 set해야 할 응답 헤더 집합·결정성(고정 리소스·고정 타임스탬프)을 crucible이 명세. 자기귀속 왕복(ETag echo 등)은 값 무관이라 오염 없음.
@@ -132,6 +140,7 @@ interface Rule {
 `http11` 팩(framing 규칙 우선, 무픽스처) + core 엔진 + Bun test 어댑터 + 레퍼런스 픽스처(zipbul·node·bun).
 
 **순서:**
+
 1. `core/rule` — STANDARDS.md → rules.json 빌드 + §4.2 상태 파서. 235 규칙 손실 없이 추출 검증.
 2. `core/driver/http11-raw` — §8의 신뢰성 요건(종료 구분·100-continue·파이프라인·프레이밍).
 3. `core/engine` — §5 합성·§6 untestable·§9 dedup.

@@ -37,10 +37,10 @@ The target is a URL, so the server under test can be written in any language.
 
 HTTP/1.1 framing — the parser-discrepancy class behind request smuggling:
 
-| Rule id | Requirement |
-|---|---|
-| `http.framing.duplicate-content-length` | RFC 9112 §6.3 — reject two divergent `Content-Length` headers |
-| `http.framing.cl-te-conflict` | RFC 9112 §6.1 — reject `Content-Length` + `Transfer-Encoding` together |
+| Rule id                                 | Requirement                                                            |
+| --------------------------------------- | ---------------------------------------------------------------------- |
+| `http.framing.duplicate-content-length` | RFC 9112 §6.3 — reject two divergent `Content-Length` headers          |
+| `http.framing.cl-te-conflict`           | RFC 9112 §6.1 — reject `Content-Length` + `Transfer-Encoding` together |
 
 Each rule cites its normative source (RFC clause) and taxonomy (CWE-444).
 

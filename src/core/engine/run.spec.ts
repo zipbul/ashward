@@ -1,9 +1,11 @@
 import { test, expect } from 'bun:test';
-import { runRulesWithProbe } from './run';
+
+import type { RuleContext, RuleDef } from '../contract/interfaces';
+import type { ProbeFn } from '../contract/types';
+
 import { Rule, Verdict } from '../contract/enums';
 import { TerminationCause } from '../driver/enums';
-import type { ProbeFn } from '../contract/types';
-import type { RuleContext, RuleDef } from '../contract/interfaces';
+import { runRulesWithProbe } from './run';
 
 const stubProbe: ProbeFn = async () => ({ response: new Uint8Array(), termination: TerminationCause.Fin });
 

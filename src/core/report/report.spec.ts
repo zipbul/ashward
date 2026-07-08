@@ -1,8 +1,10 @@
 import { test, expect } from 'bun:test';
-import { buildReport } from './report';
+
+import type { ClauseResult } from '../contract/interfaces';
+
 import { Verdict, Rule } from '../contract/enums';
 import { InconclusiveHandling } from './enums';
-import type { ClauseResult } from '../contract/interfaces';
+import { buildReport } from './report';
 
 const clause = (verdict: Verdict): ClauseResult => ({ ruleId: Rule.DuplicateContentLength, verdict });
 
@@ -24,7 +26,5 @@ test('ok() applies a partial policy override for failOn', () => {
 });
 
 test('ok() applies a partial policy override for inconclusive handling', () => {
-  expect(buildReport([clause(Verdict.Inconclusive)]).ok({ inconclusive: InconclusiveHandling.Fail })).toBe(
-    false,
-  );
+  expect(buildReport([clause(Verdict.Inconclusive)]).ok({ inconclusive: InconclusiveHandling.Fail })).toBe(false);
 });

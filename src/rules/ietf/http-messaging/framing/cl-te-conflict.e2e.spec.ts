@@ -1,13 +1,15 @@
 import { test, expect } from 'bun:test';
-import { clTeConflict } from './cl-te-conflict';
+
+import type { ProbeFn } from '../../../../core/contract/types';
+
 import { Verdict } from '../../../../core/contract/enums';
 import { probe as sendProbe } from '../../../../core/driver/socket-probe';
 import { startRawOrigin } from '../../../../testkit/origin/raw-origin';
-import type { ProbeFn } from '../../../../core/contract/types';
+import { clTeConflict } from './cl-te-conflict';
 
 const boundProbe =
   (port: number): ProbeFn =>
-  (bytes) =>
+  async bytes =>
     sendProbe({ host: '127.0.0.1', port, bytes, timeoutMs: 500 });
 
 test('flags a permissive origin that accepts a CL+TE request over a real socket', async () => {

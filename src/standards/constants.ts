@@ -1,5 +1,6 @@
-import { StandardsBody } from './enums';
 import type { RfcDocument } from './interfaces';
+
+import { StandardsBody } from './enums';
 
 /** HTTP/1.1 messaging & framing (obsoletes RFC 7230). */
 export const RFC9112 = {

@@ -6,6 +6,8 @@ coveragePathIgnorePatterns = [
   "node_modules/**",
   "dist/**",
   "test/**",
+  # testkit은 테스트 픽스처(빌드 제외) — 방어적 unreachable 분기까지 커버 강제 안 함.
+  "src/testkit/**",
   # socket-probe.ts의 RST 종료 분기는 Bun이 in-process TCP RST를 못 만들어(resetAndDestroy가
   # FIN으로 나감) 커버 불가 → 해당 테스트 skip(문서화). 나머지 전 파일은 100%.
   "src/core/driver/socket-probe.ts",

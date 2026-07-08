@@ -1,7 +1,9 @@
 import { test, expect } from 'bun:test';
-import { formatFailures } from './pretty-print';
-import { Rule, Verdict, InconclusiveReason } from '../contract/enums';
+
 import type { ClauseResult } from '../contract/interfaces';
+
+import { Rule, Verdict, InconclusiveReason } from '../contract/enums';
+import { formatFailures } from './pretty-print';
 
 const fail: ClauseResult = { ruleId: Rule.DuplicateContentLength, verdict: Verdict.Fail };
 const inconclusive: ClauseResult = {
@@ -25,14 +27,16 @@ test('states how many checks failed', () => {
 });
 
 test('omits the reason parenthetical on a clause line that has no reason', () => {
-  const clauseLine = formatFailures([fail]).split('\n').find((line) => line.includes('✗'));
+  const clauseLine = formatFailures([fail])
+    .split('\n')
+    .find(line => line.includes('✗'));
   expect(clauseLine).not.toContain('(');
 });
 
 test('lists every failing clause and counts them', () => {
   const message = formatFailures([fail, inconclusive]);
   expect(message).toContain('2 conformance check');
-  const clauseLines = message.split('\n').filter((line) => line.includes('✗'));
+  const clauseLines = message.split('\n').filter(line => line.includes('✗'));
   expect(clauseLines.length).toBe(2);
 });
 

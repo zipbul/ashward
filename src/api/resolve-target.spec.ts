@@ -1,4 +1,5 @@
 import { test, expect } from 'bun:test';
+
 import { resolveTarget } from './resolve-target';
 
 test('extracts host and explicit port from an http URL', () => {

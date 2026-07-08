@@ -1,5 +1,6 @@
-import { formatFailures } from './pretty-print';
 import type { ClauseResult } from '../contract/interfaces';
+
+import { formatFailures } from './pretty-print';
 
 /** Thrown by assertConformance when results block under the policy. Runner-agnostic: any
  *  test runner surfaces a thrown Error, and the per-clause detail rides on .results. */

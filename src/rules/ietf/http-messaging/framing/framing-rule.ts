@@ -1,11 +1,12 @@
-import { Verdict, InconclusiveReason } from '../../../../core/contract/enums';
-import { TerminationCause } from '../../../../core/driver/enums';
-import { FramingOutcome } from '../../../../http/enums';
-import { parseStatusLine } from '../../../../http/decode/head-lex';
-import { classifyFramingOutcome } from '../../../../http/reject';
 import type { Rule } from '../../../../core/contract/enums';
 import type { RuleContext, ClauseResult, RuleDef } from '../../../../core/contract/interfaces';
 import type { NormativeRef, Taxonomy } from '../../../../standards/interfaces';
+
+import { Verdict, InconclusiveReason } from '../../../../core/contract/enums';
+import { TerminationCause } from '../../../../core/driver/enums';
+import { parseStatusLine } from '../../../../http/decode/head-lex';
+import { FramingOutcome } from '../../../../http/enums';
+import { classifyFramingOutcome } from '../../../../http/reject';
 
 export interface FramingRuleSpec {
   readonly id: Rule;
@@ -37,22 +38,19 @@ export function defineFramingRule(spec: FramingRuleSpec): RuleDef {
         termination: probed.termination,
       };
 
-      switch (outcome) {
-        case FramingOutcome.Rejected:
-          return { ruleId: spec.id, verdict: Verdict.Pass, evidence };
-        case FramingOutcome.Accepted:
-          return { ruleId: spec.id, verdict: Verdict.Fail, evidence };
-        case FramingOutcome.Inconclusive:
-          return {
-            ruleId: spec.id,
-            verdict: Verdict.Inconclusive,
-            reason:
-              probed.termination === TerminationCause.Timeout
-                ? InconclusiveReason.Timeout
-                : InconclusiveReason.AmbiguousFraming,
-            evidence,
-          };
+      if (outcome === FramingOutcome.Rejected) {
+        return { ruleId: spec.id, verdict: Verdict.Pass, evidence };
       }
+      if (outcome === FramingOutcome.Accepted) {
+        return { ruleId: spec.id, verdict: Verdict.Fail, evidence };
+      }
+      return {
+        ruleId: spec.id,
+        verdict: Verdict.Inconclusive,
+        reason:
+          probed.termination === TerminationCause.Timeout ? InconclusiveReason.Timeout : InconclusiveReason.AmbiguousFraming,
+        evidence,
+      };
     },
   };
 }

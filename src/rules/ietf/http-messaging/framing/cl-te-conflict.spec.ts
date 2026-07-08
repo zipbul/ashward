@@ -1,12 +1,17 @@
 import { test, expect } from 'bun:test';
-import { clTeConflict } from './cl-te-conflict';
-import { Rule, Verdict } from '../../../../core/contract/enums';
-import { TerminationCause } from '../../../../core/driver/enums';
+
 import type { ProbeFn } from '../../../../core/contract/types';
 import type { ProbeResult } from '../../../../core/driver/interfaces';
 
+import { Rule, Verdict } from '../../../../core/contract/enums';
+import { TerminationCause } from '../../../../core/driver/enums';
+import { clTeConflict } from './cl-te-conflict';
+
 const bytes = (s: string): Uint8Array => new TextEncoder().encode(s);
-const probeReturning = (result: ProbeResult): ProbeFn => async () => result;
+const probeReturning =
+  (result: ProbeResult): ProbeFn =>
+  async () =>
+    result;
 const response = (raw: string, termination: TerminationCause): ProbeResult => ({
   response: bytes(raw),
   termination,
@@ -32,7 +37,7 @@ test('passes when the server rejects the conflicting request', async () => {
 
 test('sends a request carrying both Content-Length and Transfer-Encoding', async () => {
   let sent = '';
-  const probe: ProbeFn = async (b) => {
+  const probe: ProbeFn = async b => {
     sent = new TextDecoder().decode(b);
     return response('HTTP/1.1 200 OK\r\n\r\n', TerminationCause.Fin);
   };
@@ -42,8 +47,6 @@ test('sends a request carrying both Content-Length and Transfer-Encoding', async
 });
 
 test('cites RFC 9112 §6.1 as a normative source', () => {
-  const cited = clTeConflict.normative.some(
-    (ref) => ref.doc.code === 'RFC 9112' && ref.locator.value === '6.1',
-  );
+  const cited = clTeConflict.normative.some(ref => ref.doc.code === 'RFC 9112' && ref.locator.value === '6.1');
   expect(cited).toBe(true);
 });

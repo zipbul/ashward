@@ -1,9 +1,11 @@
 import { test, expect } from 'bun:test';
-import { resolveOk, selectBlocking } from './ok-policy';
-import { Verdict, Rule } from '../contract/enums';
-import { InconclusiveHandling } from './enums';
+
 import type { ClauseResult } from '../contract/interfaces';
 import type { ReportPolicy } from './interfaces';
+
+import { Verdict, Rule } from '../contract/enums';
+import { InconclusiveHandling } from './enums';
+import { resolveOk, selectBlocking } from './ok-policy';
 
 const clause = (verdict: Verdict): ClauseResult => ({ ruleId: Rule.DuplicateContentLength, verdict });
 
@@ -42,9 +44,7 @@ test('ignores inconclusive by default', () => {
 });
 
 test('is not ok for inconclusive when handling is Fail', () => {
-  expect(
-    resolveOk([clause(Verdict.Inconclusive)], policy({ inconclusive: InconclusiveHandling.Fail })),
-  ).toBe(false);
+  expect(resolveOk([clause(Verdict.Inconclusive)], policy({ inconclusive: InconclusiveHandling.Fail }))).toBe(false);
 });
 
 test('is ok for skip results', () => {

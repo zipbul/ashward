@@ -1,6 +1,7 @@
-import { FramingOutcome } from './enums';
-import { TerminationCause } from '../core/driver/enums';
 import type { FramingObservation } from './interfaces';
+
+import { TerminationCause } from '../core/driver/enums';
+import { FramingOutcome } from './enums';
 
 /**
  * Precise, wire-observable criteria — deliberately explicit so a conformant server that
@@ -12,13 +13,19 @@ export function classifyFramingOutcome(observation: FramingObservation): Framing
 
   if (statusLine !== null) {
     const code = statusLine.statusCode;
-    if (code >= 200 && code <= 399) return FramingOutcome.Accepted;
-    if (code >= 400 && code <= 599) return FramingOutcome.Rejected;
+    if (code >= 200 && code <= 399) {
+      return FramingOutcome.Accepted;
+    }
+    if (code >= 400 && code <= 599) {
+      return FramingOutcome.Rejected;
+    }
     return FramingOutcome.Inconclusive; // 1xx interim, or an unclassifiable out-of-range status
   }
 
   // No parseable response: a timeout tells us nothing; a clean/aborted close without a
   // valid response is a refusal.
-  if (termination === TerminationCause.Timeout) return FramingOutcome.Inconclusive;
+  if (termination === TerminationCause.Timeout) {
+    return FramingOutcome.Inconclusive;
+  }
   return FramingOutcome.Rejected;
 }

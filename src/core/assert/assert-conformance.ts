@@ -1,7 +1,8 @@
+import type { Report, ReportPolicy } from '../report/interfaces';
+
 import { DEFAULT_POLICY } from '../report/constants';
 import { selectBlocking } from '../report/ok-policy';
 import { AshwardError } from './ashward-error';
-import type { Report, ReportPolicy } from '../report/interfaces';
 
 /**
  * Runner-agnostic gate: throw an AshwardError (with per-clause detail) when the report
@@ -11,5 +12,7 @@ import type { Report, ReportPolicy } from '../report/interfaces';
 export function assertConformance(report: Report, policy?: Partial<ReportPolicy>): void {
   const resolved: ReportPolicy = { ...DEFAULT_POLICY, ...policy };
   const blocking = selectBlocking(report.results, resolved);
-  if (blocking.length > 0) throw new AshwardError(blocking);
+  if (blocking.length > 0) {
+    throw new AshwardError(blocking);
+  }
 }
