@@ -10,9 +10,9 @@ import { defineFramingRule } from './kit/framing-rule';
  * processing it is a Warn (a smuggling risk to surface), not a Fail. We send the ambiguous frame with
  * the caller's Host and judge whether the origin refused it.
  */
-const craft = (host: string): Uint8Array =>
+const craft = (host: string, path: string): Uint8Array =>
   new TextEncoder().encode(
-    `POST / HTTP/1.1\r\nHost: ${host}\r\nContent-Length: 6\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n`,
+    `POST ${path} HTTP/1.1\r\nHost: ${host}\r\nContent-Length: 6\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n`,
   );
 
 export const clTeConflict = defineFramingRule({

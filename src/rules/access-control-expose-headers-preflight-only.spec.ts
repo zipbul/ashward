@@ -21,6 +21,14 @@ test('passes when ACEH is on the actual response', async () => {
   expect((await run('Access-Control-Expose-Headers: X-Total', 'X-Other: y')).verdict).toBe(Verdict.Pass);
 });
 
+test('fails when the actual ACEH is empty (exposes nothing) but the preflight lists one', async () => {
+  const out = await run(
+    'Access-Control-Allow-Origin: *\r\nAccess-Control-Expose-Headers:',
+    'Access-Control-Expose-Headers: X-Total',
+  );
+  expect(out.verdict).toBe(Verdict.Fail);
+});
+
 test('skips when ACEH is on the preflight but the actual is not a grant to us', async () => {
   const out = await run('X-Other: y', 'Access-Control-Expose-Headers: X-Total');
   expect(out.verdict).toBe(Verdict.Skip);

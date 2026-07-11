@@ -9,8 +9,8 @@ import { defineFramingRule } from './kit/framing-rule';
  * reaches the origin's parser rather than Host validation) and judge whether the origin refused it
  * (conformant) or processed it (Fail — the parser discrepancy behind CL.TE smuggling).
  */
-const craft = (host: string): Uint8Array =>
-  new TextEncoder().encode(`POST / HTTP/1.1\r\nHost: ${host}\r\nContent-Length: 6\r\nContent-Length: 5\r\n\r\nHELLO\n`);
+const craft = (host: string, path: string): Uint8Array =>
+  new TextEncoder().encode(`POST ${path} HTTP/1.1\r\nHost: ${host}\r\nContent-Length: 6\r\nContent-Length: 5\r\n\r\nHELLO\n`);
 
 export const duplicateContentLength = defineFramingRule({
   id: Rule.DuplicateContentLength,

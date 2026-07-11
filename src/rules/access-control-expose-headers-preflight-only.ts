@@ -1,3 +1,5 @@
+import type { ResponseHead } from '../http/decode/interfaces';
+
 import { Rule, SkipReason, Verdict } from '../core/contract/enums';
 import { fieldValues, singleFieldValue } from '../http/decode/fields';
 import { ACCESS_CONTROL_ALLOW_ORIGIN, ACCESS_CONTROL_EXPOSE_HEADERS } from '../normative/header-names';
@@ -6,6 +8,12 @@ import { FetchClauseId } from '../standards/catalog/fetch';
 import { refsFor } from './kit/clause-refs';
 import { defineHttpResponseRule } from './kit/http-response-rule';
 import { PROBE_ORIGIN } from './kit/probe-fixtures';
+
+/** True when the response exposes at least one header — a non-empty ACEH value. An empty `ACEH:`
+ *  field is present but exposes nothing, so it does not count as a correctly-placed exposure. */
+function exposesHeaders(head: ResponseHead): boolean {
+  return fieldValues(head, ACCESS_CONTROL_EXPOSE_HEADERS).some(value => value.trim().length > 0);
+}
 
 /**
  * §4.2 — `Access-Control-Expose-Headers` is honoured on the actual response and ignored on the
@@ -24,10 +32,11 @@ export const accessControlExposeHeadersPreflightOnly = defineHttpResponseRule({
     if (actual === undefined || preflight === undefined) {
       return { verdict: Verdict.Skip, reason: SkipReason.HeaderAbsent };
     }
-    if (fieldValues(actual, ACCESS_CONTROL_EXPOSE_HEADERS).length > 0) {
+    // An empty ACEH value exposes nothing, so treat only a non-empty listing as "exposed here".
+    if (exposesHeaders(actual)) {
       return { verdict: Verdict.Pass };
     }
-    if (fieldValues(preflight, ACCESS_CONTROL_EXPOSE_HEADERS).length === 0) {
+    if (!exposesHeaders(preflight)) {
       return { verdict: Verdict.Skip, reason: SkipReason.HeaderAbsent };
     }
     const acao = singleFieldValue(actual, ACCESS_CONTROL_ALLOW_ORIGIN);

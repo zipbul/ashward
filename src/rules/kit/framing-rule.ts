@@ -23,9 +23,10 @@ function inconclusiveReasonFor(termination: TerminationCause): InconclusiveReaso
 
 export interface FramingRuleSpec {
   readonly id: Rule;
-  /** Builds the deliberately malformed/ambiguous request for a given `Host` authority — so the frame
-   *  reaches the origin's parser instead of being turned away by Host validation first. */
-  readonly request: (host: string) => Uint8Array;
+  /** Builds the deliberately malformed/ambiguous request for the caller's `Host` authority and
+   *  request-target `path` — so the frame reaches the resource-under-test's parser instead of being
+   *  turned away by Host or path (404) validation first. */
+  readonly request: (host: string, path: string) => Uint8Array;
   readonly normative: readonly NormativeRef[];
   readonly tags?: Taxonomy;
   /** The verdict when the origin PROCESSES the ambiguous frame: Fail for a MUST-reject clause
@@ -47,7 +48,7 @@ export function defineFramingRule(spec: FramingRuleSpec): RuleDef<HttpRuleContex
     ...(spec.tags !== undefined ? { tags: spec.tags } : {}),
 
     async run(context: HttpRuleContext): Promise<ClauseResult> {
-      const request = spec.request(authorityFor(context.target));
+      const request = spec.request(authorityFor(context.target), context.target.path);
       const probed = await context.probe(request);
       const statusLine = parseStatusLine(probed.response);
       const outcome = classifyFramingOutcome({ statusLine, termination: probed.termination });
