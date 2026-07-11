@@ -2,11 +2,11 @@ import { test, expect } from 'bun:test';
 
 import type { Target } from '../../core/engine/interfaces';
 
-import { corsRequest } from './probes';
+import { craftProbe } from './craft-probe';
 
 const TARGET: Target = { host: 'origin.test', port: 80, path: '/resource', timeoutMs: 500 };
-const craft = (target: Target, opts: Parameters<typeof corsRequest>[1]): string =>
-  new TextDecoder().decode(corsRequest(target, opts));
+const craft = (target: Target, opts: Parameters<typeof craftProbe>[1]): string =>
+  new TextDecoder().decode(craftProbe(target, opts));
 
 test('aims the request line at the target path', () => {
   expect(craft(TARGET, { origin: 'https://o.test' }).startsWith('GET /resource HTTP/1.1\r\n')).toBe(true);
@@ -56,6 +56,11 @@ test('joins previewed headers into one Access-Control-Request-Headers field', ()
   expect(sent).toContain('Access-Control-Request-Headers: x-a, x-b\r\n');
 });
 
+test('previews a private-network access when asked (§6.1 elicitation)', () => {
+  const sent = craft(TARGET, { kind: 'preflight', origin: 'https://o.test', requestMethod: 'GET', requestPrivateNetwork: true });
+  expect(sent).toContain('Access-Control-Request-Private-Network: true\r\n');
+});
+
 test('a simple probe never carries preflight request headers', () => {
   const sent = craft(TARGET, { origin: 'https://o.test' });
   expect(sent).not.toContain('Access-Control-Request-Method');
@@ -63,5 +68,5 @@ test('a simple probe never carries preflight request headers', () => {
 });
 
 test('rejects a forged origin that tries to inject a second header via CRLF', () => {
-  expect(() => corsRequest(TARGET, { origin: 'https://x\r\nCookie: a=b' })).toThrow('CR/LF');
+  expect(() => craftProbe(TARGET, { origin: 'https://x\r\nCookie: a=b' })).toThrow('CR/LF');
 });

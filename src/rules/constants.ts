@@ -1,8 +1,8 @@
 import type { RuleDef } from '../core/contract/interfaces';
 
 import { accessControlAllowCredentialsExactTrue } from './access-control-allow-credentials-exact-true';
-import { clTeConflict } from './http/framing/cl-te-conflict';
-import { duplicateContentLength } from './http/framing/duplicate-content-length';
+import { clTeConflict } from './cl-te-conflict';
+import { duplicateContentLength } from './duplicate-content-length';
 
 /**
  * The built-in rules run by default — HTTP/1.1 framing plus the WHATWG Fetch CORS rules landing

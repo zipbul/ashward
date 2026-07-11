@@ -3,12 +3,12 @@ import { test, expect } from 'bun:test';
 import type { Disposition, Heuristic, RuleMapping } from './disposition';
 
 import { Rule } from '../core/contract/enums';
-import { clTeConflict } from '../rules/http/framing/cl-te-conflict';
-import { duplicateContentLength } from '../rules/http/framing/duplicate-content-length';
-import { CLAUSES, Section } from './clauses';
+import { clTeConflict } from '../rules/cl-te-conflict';
+import { duplicateContentLength } from '../rules/duplicate-content-length';
+import { CLAUSES } from './clauses';
 import { DISPOSITIONS, HEURISTICS } from './disposition';
 import { Severity, TestabilityBasis } from './disposition-enums';
-import { ReqLevel } from './enums';
+import { ClauseId, ReqLevel } from './enums';
 
 /**
  * Phase 0 machine-checked invariant: every normative CORS clause in STANDARDS.md is accounted for
@@ -18,48 +18,49 @@ import { ReqLevel } from './enums';
  * enum cannot carry an id the table never places, and the table cannot name an id outside the enum.
  */
 
-/** The clause index literally as it stands in STANDARDS.md §1–§8 (snapshot 2026-07-10). Hardcoded
- *  here — NOT derived from Section — so deleting a clause from the enum fails this test loudly
- *  instead of vanishing from both the index and its own check at once. */
-const SNAPSHOT_SECTIONS = [
-  '§1.1',
-  '§1.2',
-  '§1.3',
-  '§1.4',
-  '§1.5',
-  '§1.6',
-  '§2.1',
-  '§2.2',
-  '§2.3',
-  '§2.4',
-  '§3.1',
-  '§3.2',
-  '§3.3',
-  '§3.4',
-  '§3.5',
-  '§3.6',
-  '§3.7',
-  '§3.8',
-  '§4.1',
-  '§4.2',
-  '§5.1',
-  '§6.1',
-  '§6.2',
-  '§7.1',
-  '§7.2',
-  '§8.1',
-  '§8.2',
-].sort();
+/** The clause index literally as it stands (neutral `ClauseId` snapshot, one per STANDARDS.md
+ *  §1–§8, snapshot 2026-07-10). Hardcoded here — NOT derived from `ClauseId` — so deleting a member
+ *  from the enum fails this test loudly instead of vanishing from both the index and its own check
+ *  at once. Order is irrelevant: both sides are sorted before comparison. */
+const SNAPSHOT_CLAUSES = [
+  'allow-origin-grammar',
+  'serialized-origin-shape',
+  'serialized-origin-encoding',
+  'allow-credentials-exact-true',
+  'list-header-token-grammar',
+  'max-age-delta-seconds',
+  'shared-response-has-allow-origin',
+  'allow-origin-matches-request',
+  'credentialed-needs-allow-credentials',
+  'allow-origin-and-credentials-once',
+  'preflight-ok-status',
+  'preflight-list-headers-parseable',
+  'preflight-allows-request-method',
+  'preflight-method-byte-case',
+  'preflight-allows-authorization',
+  'preflight-allows-unsafe-headers',
+  'credentialed-no-wildcard',
+  'preflight-credentialed-grant',
+  'shared-response-any-status',
+  'expose-headers-on-actual',
+  'redirect-location-no-userinfo',
+  'allow-private-network-literal-true',
+  'private-network-id-name-format',
+  'vary-origin-when-varying',
+  'static-origin-no-vary',
+  'no-wildcard-on-protected',
+  'expect-non-preflighted-content-types',
+];
 
 /** The framing rules are HTTP/1.1 (RFC 9112), not CORS clauses — they belong to the roster but not
  *  the disposition table, so the bijection accounts for them explicitly. Derived from the rule
  *  modules' own `id` fields (single source), not a hand-typed literal that could drift. */
 const FRAMING_RULE_IDS: readonly Rule[] = [duplicateContentLength.id, clTeConflict.id];
 
-const LEVEL = new Map(CLAUSES.map(c => [c.section, c.reqLevel]));
+const LEVEL = new Map(CLAUSES.map(c => [c.id, c.reqLevel]));
 const VALID_BASES = new Set<string>(Object.values(TestabilityBasis));
 const VALID_SEVERITIES = new Set<string>(Object.values(Severity));
-const KNOWN_SECTIONS = new Set<string>(Object.values(Section));
+const KNOWN_CLAUSES = new Set<string>(Object.values(ClauseId));
 const KEBAB = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 const allMappings = (): RuleMapping[] => {
@@ -70,17 +71,17 @@ const allMappings = (): RuleMapping[] => {
   return out;
 };
 
-const isMustLevel = (c: Section): boolean => LEVEL.get(c) === ReqLevel.Must || LEVEL.get(c) === ReqLevel.MustNot;
-const isShouldLevel = (c: Section): boolean => LEVEL.get(c) === ReqLevel.Should || LEVEL.get(c) === ReqLevel.ShouldNot;
+const isMustLevel = (c: ClauseId): boolean => LEVEL.get(c) === ReqLevel.Must || LEVEL.get(c) === ReqLevel.MustNot;
+const isShouldLevel = (c: ClauseId): boolean => LEVEL.get(c) === ReqLevel.Should || LEVEL.get(c) === ReqLevel.ShouldNot;
 const isUnaccounted = (d: Disposition): boolean =>
   d.rules.length === 0 && (d.untestable === undefined || d.untestable.length === 0);
 const hasInvalidBasisOrSeverity = (m: RuleMapping): boolean => !VALID_BASES.has(m.basis) || !VALID_SEVERITIES.has(m.severity);
 const isUnjustifiedDowngrade = (m: RuleMapping): boolean => m.severity !== Severity.Fail && m.severityNote === undefined;
-const isBadHeuristic = (h: Heuristic): boolean => h.cwe.length === 0 || !KNOWN_SECTIONS.has(h.relatesTo);
+const isBadHeuristic = (h: Heuristic): boolean => h.cwe.length === 0 || !KNOWN_CLAUSES.has(h.relatesTo);
 const hasBadShape = (id: string): boolean =>
   !KEBAB.test(id) || id.startsWith('cors') || id.startsWith('rfc') || id.startsWith('http-framing');
 
-const mappingsWhere = (predicate: (c: Section) => boolean): RuleMapping[] => {
+const mappingsWhere = (predicate: (c: ClauseId) => boolean): RuleMapping[] => {
   const out: RuleMapping[] = [];
   for (const d of DISPOSITIONS) {
     if (predicate(d.clause)) {
@@ -93,16 +94,16 @@ const mustMappings = (): RuleMapping[] => mappingsWhere(isMustLevel);
 const shouldMappings = (): RuleMapping[] => mappingsWhere(isShouldLevel);
 
 test('the clause enum matches the hardcoded STANDARDS.md snapshot', () => {
-  expect((Object.values(Section) as string[]).sort()).toEqual(SNAPSHOT_SECTIONS);
+  expect((Object.values(ClauseId) as string[]).sort()).toEqual([...SNAPSHOT_CLAUSES].sort());
 });
 
 test('CLAUSES covers exactly the clause enum', () => {
-  expect(CLAUSES.map(c => c.section).sort()).toEqual(Object.values(Section).sort());
+  expect(CLAUSES.map(c => c.id).sort()).toEqual(Object.values(ClauseId).sort());
 });
 
-test('every clause has a unique section id', () => {
-  const sections = CLAUSES.map(c => c.section);
-  expect(new Set(sections).size).toBe(sections.length);
+test('every clause has a unique id', () => {
+  const ids = CLAUSES.map(c => c.id);
+  expect(new Set(ids).size).toBe(ids.length);
 });
 
 test('every clause carries at least one normative citation (multi-doc identity, not a bare anchor)', () => {
@@ -115,7 +116,7 @@ test('every citation stamps the clause requirement level onto each referenced do
 });
 
 test('every clause is dispositioned exactly once', () => {
-  expect(DISPOSITIONS.map(d => d.clause).sort()).toEqual(CLAUSES.map(c => c.section).sort());
+  expect(DISPOSITIONS.map(d => d.clause).sort()).toEqual(CLAUSES.map(c => c.id).sort());
 });
 
 test('every disposition accounts for the clause with rules and/or an untestable reason', () => {
@@ -154,4 +155,8 @@ test('every heuristic guards at least one CWE and names a real related clause', 
 
 test('rule ids are kebab-case with no domain/spec prefix', () => {
   expect(Object.values(Rule).filter(hasBadShape)).toEqual([]);
+});
+
+test('clause ids are kebab-case with no domain/spec prefix', () => {
+  expect(Object.values(ClauseId).filter(hasBadShape)).toEqual([]);
 });

@@ -1,6 +1,6 @@
 import { test, expect } from 'bun:test';
 
-import { RFC9110, RFC9111, RFC9112, WHATWG_FETCH, WHATWG_URL, WICG_PNA } from './constants';
+import { RFC9110, RFC9111, RFC9112, WHATWG_FETCH, WHATWG_URL, WICG_PNA } from './documents';
 import { DocumentStatus, StandardsBody } from './enums';
 
 test('RFC 9112 code matches its number', () => {

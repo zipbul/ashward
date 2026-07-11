@@ -30,10 +30,17 @@ export interface StandardLocator {
   readonly value: string;
 }
 
-/** One normative citation on a rule. A rule carries an array — sources are inherently a set. */
-export interface NormativeRef {
+/** A pointer into a standards document: a (document, locator) pair with NO requirement level. This
+ *  is what a `normative/` atom exports to name the exact production/algorithm it renders as code —
+ *  the RFC 2119 level belongs to the clause that imposes it, not to a grammar primitive. */
+export interface Citation {
   readonly doc: StandardDocument;
   readonly locator: StandardLocator;
+}
+
+/** One normative citation on a clause/rule: a Citation stamped with the requirement level the
+ *  clause imposes. A rule carries an array — sources are inherently a set. */
+export interface NormativeRef extends Citation {
   readonly req: ReqLevel;
 }
 

@@ -1,28 +1,23 @@
 import { Rule, SkipReason, Verdict } from '../core/contract/enums';
-import { ACCESS_CONTROL_ALLOW_CREDENTIALS, CREDENTIALS_TRUE } from '../cors/constants';
 import { fieldValues } from '../http/decode/fields';
-import { WHATWG_FETCH } from '../standards/constants';
-import { LocatorKind, ReqLevel } from '../standards/enums';
-import { PROBE_ORIGIN } from './_kit/constants';
-import { defineCorsRule } from './_kit/define-cors-rule';
+import { ACCESS_CONTROL_ALLOW_CREDENTIALS } from '../normative/header-names';
+import { CREDENTIALS_TRUE } from '../normative/literals';
+import { ClauseId } from '../standards/enums';
+import { refsFor } from './_kit/clause-refs';
+import { defineProbeRule } from './_kit/define-probe-rule';
+import { PROBE_ORIGIN } from './_kit/probe-fixtures';
 
 /**
  * STANDARDS §1.4 — `Access-Control-Allow-Credentials` MUST be generated as the exact bytes `true`.
  * The CORS check reads it as bytes, so `True`, `TRUE`, `1`, `yes` — and `false`, which Fetch does
  * not define either — are all §1.4 violations: the server emitted something other than the one
  * legal value. All fail (a MUST); only absence is exempt, since §1.4 governs the value when it is
- * generated, not whether it is (Skip).
+ * generated, not whether it is (Skip). Two field lines combine (0x2C 0x20) and also fail (§2.4).
  */
-export const accessControlAllowCredentialsExactTrue = defineCorsRule({
+export const accessControlAllowCredentialsExactTrue = defineProbeRule({
   id: Rule.AccessControlAllowCredentialsExactTrue,
   probes: [{ origin: PROBE_ORIGIN }],
-  normative: [
-    // §1.4 — the value must be the exact bytes `true`.
-    { doc: WHATWG_FETCH, locator: { kind: LocatorKind.Anchor, value: 'http-new-header-syntax' }, req: ReqLevel.Must },
-    // §2.4 — ACAC is generated at most once; two field lines combine (0x2C 0x20) and fail the match.
-    { doc: WHATWG_FETCH, locator: { kind: LocatorKind.Anchor, value: 'cors-check' }, req: ReqLevel.Must },
-    { doc: WHATWG_FETCH, locator: { kind: LocatorKind.Anchor, value: 'terminology-headers' }, req: ReqLevel.Must },
-  ],
+  normative: refsFor(ClauseId.AllowCredentialsExactTrue, ClauseId.AllowOriginAndCredentialsOnce),
 
   judge(heads) {
     const [head] = heads;

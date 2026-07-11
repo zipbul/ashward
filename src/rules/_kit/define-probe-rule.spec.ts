@@ -3,13 +3,13 @@ import { test, expect } from 'bun:test';
 import type { ProbeFn } from '../../core/contract/types';
 import type { ProbeResult } from '../../core/driver/interfaces';
 import type { Target } from '../../core/engine/interfaces';
-import type { CorsRuleSpec } from './define-cors-rule';
+import type { ProbeRuleSpec } from './define-probe-rule';
 
 import { InconclusiveReason, Rule, Verdict } from '../../core/contract/enums';
 import { TerminationCause } from '../../core/driver/enums';
-import { WHATWG_FETCH } from '../../standards/constants';
+import { WHATWG_FETCH } from '../../standards/documents';
 import { LocatorKind, ReqLevel } from '../../standards/enums';
-import { defineCorsRule } from './define-cors-rule';
+import { defineProbeRule } from './define-probe-rule';
 
 const TARGET: Target = { host: 'origin.test', port: 80, path: '/', timeoutMs: 500 };
 const bytes = (s: string): Uint8Array => new TextEncoder().encode(s);
@@ -21,7 +21,7 @@ const probeSequence = (results: readonly ProbeResult[]): ProbeFn => {
   return async () => Promise.resolve(results[call++]!);
 };
 
-const spec = (over: Partial<CorsRuleSpec>): CorsRuleSpec => ({
+const spec = (over: Partial<ProbeRuleSpec>): ProbeRuleSpec => ({
   id: Rule.AccessControlAllowOriginGrammar,
   normative: [{ doc: WHATWG_FETCH, locator: { kind: LocatorKind.Anchor, value: 'x' }, req: ReqLevel.Must }],
   probes: [{ origin: 'https://o.test' }],
@@ -29,8 +29,8 @@ const spec = (over: Partial<CorsRuleSpec>): CorsRuleSpec => ({
   ...over,
 });
 
-const run = async (over: Partial<CorsRuleSpec>, results: readonly ProbeResult[]) =>
-  defineCorsRule(spec(over)).run({ probe: probeSequence(results), target: TARGET });
+const run = async (over: Partial<ProbeRuleSpec>, results: readonly ProbeResult[]) =>
+  defineProbeRule(spec(over)).run({ probe: probeSequence(results), target: TARGET });
 
 test('returns the judge verdict when every head parses', async () => {
   const out = await run({ judge: () => ({ verdict: Verdict.Fail }) }, [result(okHead)]);
@@ -95,7 +95,7 @@ test('sends one probe per spec entry in order', async () => {
     sent.push(new TextDecoder().decode(b));
     return Promise.resolve(result(okHead));
   };
-  await defineCorsRule(spec({ probes: [{ origin: 'https://a.test' }, { origin: 'https://b.test' }] })).run({
+  await defineProbeRule(spec({ probes: [{ origin: 'https://a.test' }, { origin: 'https://b.test' }] })).run({
     probe,
     target: TARGET,
   });

@@ -1,7 +1,7 @@
-import { Rule } from '../../../core/contract/enums';
-import { RFC9110, RFC9112 } from '../../../standards/constants';
-import { LocatorKind, ReqLevel } from '../../../standards/enums';
-import { defineFramingRule } from './framing-rule';
+import { Rule } from '../core/contract/enums';
+import { RFC9110, RFC9112 } from '../standards/documents';
+import { LocatorKind, ReqLevel } from '../standards/enums';
+import { defineFramingRule } from './_kit/framing-rule';
 
 /**
  * RFC 9112 §6.3: a message with two divergent Content-Length values is unrecoverably

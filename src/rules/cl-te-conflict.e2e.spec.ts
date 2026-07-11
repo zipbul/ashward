@@ -1,10 +1,10 @@
 import { test, expect } from 'bun:test';
 
-import type { ProbeFn } from '../../../core/contract/types';
+import type { ProbeFn } from '../core/contract/types';
 
-import { Verdict } from '../../../core/contract/enums';
-import { probe as sendProbe } from '../../../core/driver/socket-probe';
-import { startRawOrigin } from '../../../testkit/origin/raw-origin';
+import { Verdict } from '../core/contract/enums';
+import { probe as sendProbe } from '../core/driver/socket-probe';
+import { startRawOrigin } from '../testkit/origin/raw-origin';
 import { clTeConflict } from './cl-te-conflict';
 
 const TARGET = { host: 'origin.test', port: 80, path: '/', timeoutMs: 500 };
