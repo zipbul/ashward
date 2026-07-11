@@ -1,14 +1,19 @@
 import { test, expect } from 'bun:test';
 
 import type { ClauseResult } from '../contract/interfaces';
+import type { ClauseReason } from '../contract/types';
 
-import { Rule, Verdict } from '../contract/enums';
+import { InconclusiveReason, Rule, Verdict } from '../contract/enums';
 import { InconclusiveHandling } from '../report/enums';
 import { buildReport } from '../report/report';
 import { AshwardError } from './ashward-error';
 import { assertConformance } from './assert-conformance';
 
-const clause = (verdict: Verdict): ClauseResult => ({ ruleId: Rule.DuplicateContentLength, verdict });
+const clause = (verdict: Verdict, reason?: ClauseReason): ClauseResult => ({
+  ruleId: Rule.DuplicateContentLength,
+  verdict,
+  ...(reason !== undefined ? { reason } : {}),
+});
 
 /** Run `assertConformance` and return the thrown AshwardError, narrowed without a cast. */
 function captureAshwardError(run: () => void): AshwardError {
@@ -51,8 +56,22 @@ test('does not throw for a warn under the default policy', () => {
   }).not.toThrow();
 });
 
-test('throws for an inconclusive result when handling is Fail', () => {
-  const report = buildReport([clause(Verdict.Inconclusive)]);
+test('throws under the default policy for a connectivity inconclusive (unreachable server)', () => {
+  const report = buildReport([clause(Verdict.Inconclusive, InconclusiveReason.ConnectionRefused)]);
+  expect(() => {
+    assertConformance(report);
+  }).toThrow(AshwardError);
+});
+
+test('does not throw for an undecidable inconclusive under the default policy', () => {
+  const report = buildReport([clause(Verdict.Inconclusive, InconclusiveReason.AmbiguousFraming)]);
+  expect(() => {
+    assertConformance(report);
+  }).not.toThrow();
+});
+
+test('throws for an undecidable inconclusive when handling is escalated to Fail', () => {
+  const report = buildReport([clause(Verdict.Inconclusive, InconclusiveReason.AmbiguousFraming)]);
   expect(() => {
     assertConformance(report, { inconclusive: InconclusiveHandling.Fail });
   }).toThrow(AshwardError);

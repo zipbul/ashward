@@ -56,7 +56,7 @@ A rule sends its crafted request(s) and classifies the wire response:
 - **skip** — the clause did not apply (the header it judges was absent), with a typed reason
 - **inconclusive** — couldn't tell (timeout, malformed response), with a typed reason
 
-`report.ok(policy)` is a view over the results, not a stored flag — you decide what fails your build (`failOn`, how to treat inconclusive).
+`report.ok(policy)` is a view over the results, not a stored flag — you decide what fails your build (`failOn`, how to treat inconclusive). It is **fail-closed on connectivity**: if ashward could not reach the server (dead host, wrong URL, refused, timeout) the report is never green, regardless of policy. A _reached-but-undecidable_ inconclusive (a live server that answered oddly) is non-blocking by default; set `inconclusive: 'fail'` to block those too.
 
 ## What it does not do
 

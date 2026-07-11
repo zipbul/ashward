@@ -2,21 +2,12 @@ import { test, expect } from 'bun:test';
 
 import { resolveTarget } from './resolve-target';
 
-test('extracts host, explicit port, and request-target path from an http URL', () => {
-  expect(resolveTarget('http://example.test:8080/api/cors')).toEqual({
+test('extracts host and explicit port from an http URL', () => {
+  expect(resolveTarget('http://example.test:8080/api')).toEqual({
     host: 'example.test',
     port: 8080,
-    path: '/api/cors',
     timeoutMs: 5000,
   });
-});
-
-test('defaults the path to / when the URL has none', () => {
-  expect(resolveTarget('http://example.test').path).toBe('/');
-});
-
-test('preserves the query string in the request-target', () => {
-  expect(resolveTarget('http://example.test/x?q=1').path).toBe('/x?q=1');
 });
 
 test('defaults to port 80 for http without an explicit port', () => {

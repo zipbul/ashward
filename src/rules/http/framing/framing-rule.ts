@@ -8,6 +8,17 @@ import { parseStatusLine } from '../../../http/decode/head-lex';
 import { FramingOutcome } from '../../../http/enums';
 import { classifyFramingOutcome } from '../../../http/reject';
 
+/** Map how the exchange ended to the typed reason an inconclusive verdict carries. */
+function inconclusiveReasonFor(termination: TerminationCause): InconclusiveReason {
+  if (termination === TerminationCause.Timeout) {
+    return InconclusiveReason.Timeout;
+  }
+  if (termination === TerminationCause.Unreachable) {
+    return InconclusiveReason.ConnectionRefused;
+  }
+  return InconclusiveReason.AmbiguousFraming;
+}
+
 export interface FramingRuleSpec {
   readonly id: Rule;
   /** The deliberately malformed/ambiguous request whose rejection this rule requires. */
@@ -47,8 +58,7 @@ export function defineFramingRule(spec: FramingRuleSpec): RuleDef {
       return {
         ruleId: spec.id,
         verdict: Verdict.Inconclusive,
-        reason:
-          probed.termination === TerminationCause.Timeout ? InconclusiveReason.Timeout : InconclusiveReason.AmbiguousFraming,
+        reason: inconclusiveReasonFor(probed.termination),
         evidence,
       };
     },

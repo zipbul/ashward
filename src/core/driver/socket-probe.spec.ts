@@ -106,15 +106,32 @@ test('reports rst termination on EPIPE', async () => {
   expect((await promise).termination).toBe(TerminationCause.Rst);
 });
 
-test('rejects on a non-termination socket error such as ECONNREFUSED', async () => {
+test('reports unreachable termination on ECONNREFUSED (a dead server is inconclusive, not a throw)', async () => {
   const socket = new FakeSocket();
   const promise = probe(INPUT, connectorFor(socket));
   socket.emit('error', errno('ECONNREFUSED'));
-  const outcome = await promise.then(
-    () => null,
-    (error: unknown) => error,
-  );
-  expect(outcome).toBeInstanceOf(Error);
+  expect((await promise).termination).toBe(TerminationCause.Unreachable);
+});
+
+test('reports unreachable termination on a DNS failure (ENOTFOUND) — a typo host must not crash', async () => {
+  const socket = new FakeSocket();
+  const promise = probe(INPUT, connectorFor(socket));
+  socket.emit('error', errno('ENOTFOUND'));
+  expect((await promise).termination).toBe(TerminationCause.Unreachable);
+});
+
+test('reports unreachable termination on any other transport error (host unreachable) — never rejects', async () => {
+  const socket = new FakeSocket();
+  const promise = probe(INPUT, connectorFor(socket));
+  socket.emit('error', errno('EHOSTUNREACH'));
+  expect((await promise).termination).toBe(TerminationCause.Unreachable);
+});
+
+test('returns an empty response on an unreachable connection', async () => {
+  const socket = new FakeSocket();
+  const promise = probe(INPUT, connectorFor(socket));
+  socket.emit('error', errno('ECONNREFUSED'));
+  expect((await promise).response.length).toBe(0);
 });
 
 test('destroys the socket once settled', async () => {

@@ -52,6 +52,12 @@ test('classifies a timeout with no response as inconclusive', () => {
   expect(classifyFramingOutcome({ statusLine: null, termination: TerminationCause.Timeout })).toBe(FramingOutcome.Inconclusive);
 });
 
+test('classifies a refused connection with no response as inconclusive (an unreachable peer tells us nothing)', () => {
+  expect(classifyFramingOutcome({ statusLine: null, termination: TerminationCause.Unreachable })).toBe(
+    FramingOutcome.Inconclusive,
+  );
+});
+
 test('lets an observed 2xx win over a later timeout', () => {
   expect(classifyFramingOutcome({ statusLine: status(200), termination: TerminationCause.Timeout })).toBe(
     FramingOutcome.Accepted,

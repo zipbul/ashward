@@ -20,7 +20,6 @@ export function resolveTarget(url: string): Target {
   }
 
   const port = parsed.port ? Number(parsed.port) : HTTP_PORT;
-  const path = `${parsed.pathname}${parsed.search}` || '/';
 
-  return { host: parsed.hostname, port, path, timeoutMs: DEFAULT_TIMEOUT_MS };
+  return { host: parsed.hostname, port, timeoutMs: DEFAULT_TIMEOUT_MS };
 }

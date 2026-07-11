@@ -52,6 +52,13 @@ test('is inconclusive with an ambiguous-framing reason on an unclassifiable stat
   expect(result.reason).toBe(InconclusiveReason.AmbiguousFraming);
 });
 
+test('is inconclusive with a connection-refused reason when the target is unreachable', async () => {
+  const probe = probeReturning(response('', TerminationCause.Unreachable));
+  const result = await duplicateContentLength.run({ probe });
+  expect(result.verdict).toBe(Verdict.Inconclusive);
+  expect(result.reason).toBe(InconclusiveReason.ConnectionRefused);
+});
+
 test('reports its own rule id on the result', async () => {
   const probe = probeReturning(response('HTTP/1.1 200 OK\r\n\r\n', TerminationCause.Fin));
   const result = await duplicateContentLength.run({ probe });
