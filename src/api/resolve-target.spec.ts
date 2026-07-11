@@ -6,6 +6,7 @@ test('extracts host and explicit port from an http URL', () => {
   expect(resolveTarget('http://example.test:8080/api')).toEqual({
     host: 'example.test',
     port: 8080,
+    path: '/api',
     timeoutMs: 5000,
   });
 });

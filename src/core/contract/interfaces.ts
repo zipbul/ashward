@@ -1,5 +1,6 @@
 import type { NormativeRef, Taxonomy } from '../../standards/interfaces';
 import type { TerminationCause } from '../driver/enums';
+import type { Target } from '../engine/interfaces';
 import type { Rule, Verdict } from './enums';
 import type { ClauseReason, ProbeFn } from './types';
 
@@ -17,9 +18,12 @@ export interface ClauseResult {
   readonly evidence?: Evidence;
 }
 
-/** Everything a rule is given to do its work — for now, just the target-bound probe. */
+/** Everything a rule is given to do its work: the target-bound probe (send bytes, get the wire
+ *  result) and the resolved Target, so a rule can craft requests aimed at the caller's host/path
+ *  with the real Host header rather than a hardcoded one. */
 export interface RuleContext {
   readonly probe: ProbeFn;
+  readonly target: Target;
 }
 
 export interface RuleDef {

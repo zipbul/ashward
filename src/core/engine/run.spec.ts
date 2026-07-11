@@ -8,6 +8,7 @@ import { TerminationCause } from '../driver/enums';
 import { runRulesWithProbe } from './run';
 
 const stubProbe: ProbeFn = async () => Promise.resolve({ response: new Uint8Array(), termination: TerminationCause.Fin });
+const TARGET = { host: 'origin.test', port: 80, path: '/', timeoutMs: 500 };
 
 const fakeRule = (verdict: Verdict): RuleDef => ({
   id: Rule.DuplicateContentLength,
@@ -18,17 +19,17 @@ const fakeRule = (verdict: Verdict): RuleDef => ({
 });
 
 test('collects a result from every rule into the report', async () => {
-  const report = await runRulesWithProbe(stubProbe, [fakeRule(Verdict.Pass), fakeRule(Verdict.Pass)]);
+  const report = await runRulesWithProbe(stubProbe, TARGET, [fakeRule(Verdict.Pass), fakeRule(Verdict.Pass)]);
   expect(report.results.length).toBe(2);
 });
 
 test('report ok() is false when any rule fails', async () => {
-  const report = await runRulesWithProbe(stubProbe, [fakeRule(Verdict.Pass), fakeRule(Verdict.Fail)]);
+  const report = await runRulesWithProbe(stubProbe, TARGET, [fakeRule(Verdict.Pass), fakeRule(Verdict.Fail)]);
   expect(report.ok()).toBe(false);
 });
 
 test('produces an empty, ok report when there are no rules', async () => {
-  const report = await runRulesWithProbe(stubProbe, []);
+  const report = await runRulesWithProbe(stubProbe, TARGET, []);
   expect(report.results.length).toBe(0);
   expect(report.ok()).toBe(true);
 });
@@ -43,6 +44,6 @@ test('hands the provided probe to each rule', async () => {
       return Promise.resolve({ ruleId: Rule.DuplicateContentLength, verdict: Verdict.Pass });
     },
   };
-  await runRulesWithProbe(stubProbe, [capturingRule]);
+  await runRulesWithProbe(stubProbe, TARGET, [capturingRule]);
   expect(received).toBe(stubProbe);
 });

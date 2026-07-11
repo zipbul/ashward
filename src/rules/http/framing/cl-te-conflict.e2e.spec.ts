@@ -7,6 +7,7 @@ import { probe as sendProbe } from '../../../core/driver/socket-probe';
 import { startRawOrigin } from '../../../testkit/origin/raw-origin';
 import { clTeConflict } from './cl-te-conflict';
 
+const TARGET = { host: 'origin.test', port: 80, path: '/', timeoutMs: 500 };
 const boundProbe =
   (port: number): ProbeFn =>
   async bytes =>
@@ -15,7 +16,7 @@ const boundProbe =
 test('flags a permissive origin that accepts a CL+TE request over a real socket', async () => {
   const origin = await startRawOrigin('HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n');
   try {
-    const result = await clTeConflict.run({ probe: boundProbe(origin.port) });
+    const result = await clTeConflict.run({ probe: boundProbe(origin.port), target: TARGET });
     expect(result.verdict).toBe(Verdict.Fail);
   } finally {
     await origin.close();
@@ -25,7 +26,7 @@ test('flags a permissive origin that accepts a CL+TE request over a real socket'
 test('clears a conformant origin that rejects a CL+TE request with 400', async () => {
   const origin = await startRawOrigin('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n');
   try {
-    const result = await clTeConflict.run({ probe: boundProbe(origin.port) });
+    const result = await clTeConflict.run({ probe: boundProbe(origin.port), target: TARGET });
     expect(result.verdict).toBe(Verdict.Pass);
   } finally {
     await origin.close();

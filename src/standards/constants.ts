@@ -34,29 +34,29 @@ export const RFC9111 = {
 
 /** WHATWG Fetch — defines the CORS protocol AND (via #origin-header) the origin serialization
  *  that supplants RFC 6454. Living: cited by anchor, never by version. */
-export const WHATWG_FETCH = {
+export const WHATWG_FETCH: LivingDocument = {
   body: StandardsBody.WHATWG,
   code: 'WHATWG Fetch',
   title: 'Fetch Living Standard',
   url: 'https://fetch.spec.whatwg.org/',
   status: DocumentStatus.Living,
-} satisfies LivingDocument;
+};
 
 /** WHATWG URL — the host/origin serialization algorithm Fetch defers to. */
-export const WHATWG_URL = {
+export const WHATWG_URL: LivingDocument = {
   body: StandardsBody.WHATWG,
   code: 'WHATWG URL',
   title: 'URL Living Standard',
   url: 'https://url.spec.whatwg.org/',
   status: DocumentStatus.Living,
-} satisfies LivingDocument;
+};
 
 /** WICG Private Network Access — a non-standard draft CG report (snapshot 2024-09-26). Its
  *  draft status is carried here, on the document, not as a per-rule flag. */
-export const WICG_PNA = {
+export const WICG_PNA: LivingDocument = {
   body: StandardsBody.WICG,
   code: 'WICG PNA',
   title: 'Private Network Access',
   url: 'https://wicg.github.io/private-network-access/',
   status: DocumentStatus.Draft,
-} satisfies LivingDocument;
+};

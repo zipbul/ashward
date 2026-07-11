@@ -29,6 +29,22 @@ function headLines(response: Uint8Array): string[] {
   return lines;
 }
 
+/** Strip only the optional whitespace RFC 9112 §5.1 allows around a field value — SP (0x20) and
+ *  HTAB (0x09). NOT JS `.trim()`, which also eats Unicode spaces/newlines: a byte-exact rule (e.g.
+ *  Access-Control-Allow-Credentials must be `true`) must not have a leading U+00A0 silently removed
+ *  so the value looks conformant when the server did not generate the exact bytes. */
+function trimOws(value: string): string {
+  let start = 0;
+  let end = value.length;
+  while (start < end && (value[start] === ' ' || value[start] === '\t')) {
+    start += 1;
+  }
+  while (end > start && (value[end - 1] === ' ' || value[end - 1] === '\t')) {
+    end -= 1;
+  }
+  return value.slice(start, end);
+}
+
 /**
  * Parse the response head: status-line plus every field line, without normalizing. Only the
  * optional whitespace around a field value is stripped (RFC 9112 §5.1); names keep their case
@@ -47,7 +63,7 @@ export function parseResponseHead(response: Uint8Array): ResponseHead | null {
     if (colon <= 0) {
       continue; // no field name, or an obs-fold continuation — not a field line
     }
-    fields.push({ name: line.slice(0, colon), value: line.slice(colon + 1).trim() });
+    fields.push({ name: line.slice(0, colon), value: trimOws(line.slice(colon + 1)) });
   }
 
   return { statusLine, fields };

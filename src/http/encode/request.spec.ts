@@ -34,3 +34,13 @@ test('terminates the head with a blank line', () => {
   const sent = decode(craftRequest({ method: 'GET', target: '/', host: 'h.test', headers: [] }));
   expect(sent.endsWith('\r\n\r\n')).toBe(true);
 });
+
+test('refuses CR or LF in a header value (no header injection from ashward)', () => {
+  expect(() =>
+    craftRequest({ method: 'GET', target: '/', host: 'h.test', headers: [{ name: 'Origin', value: 'x\r\nCookie: a=b' }] }),
+  ).toThrow('CR/LF');
+});
+
+test('refuses CR or LF in the request-target', () => {
+  expect(() => craftRequest({ method: 'GET', target: '/a\r\nEvil: 1', host: 'h.test', headers: [] })).toThrow('CR/LF');
+});
