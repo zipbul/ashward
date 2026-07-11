@@ -3,10 +3,10 @@
  * international standards (WHATWG Fetch CORS, RFC 9110/9111/9112, WHATWG URL, WICG PNA) and security
  * requirements, from inside any test runner.
  *
- *   import { ashward, assertConformance } from 'ashward';
+ *   import { ashward, assertOk } from 'ashward';
  *
  *   const report = await ashward('http://localhost:3000/api'); // runs every shipped rule
- *   assertConformance(report);                                 // throws on any blocking result
+ *   assertOk(report);                                          // throws on any blocking result
  *
  * The package ships RULES; selecting which to run is yours. Filter `ALL_RULES`, or hand-pick the
  * individual rules from the `rules` namespace, and pass them to ashward():
@@ -18,7 +18,7 @@
 
 // The entry and the runner-agnostic gate.
 export { ashward } from './src/api/ashward';
-export { assertConformance } from './src/core/assert/assert-conformance';
+export { assertOk } from './src/core/assert/assert-ok';
 export { AshwardError } from './src/core/assert/ashward-error';
 export { formatFailures } from './src/core/assert/pretty-print';
 

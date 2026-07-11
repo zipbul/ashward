@@ -26,9 +26,9 @@ export enum SkipReason {
 /**
  * Public, permanent rule identity — the single source of a rule's id. The member value is the
  * stable slug that appears in reports, baselines, and `except` tokens, so it must never change
- * once shipped. Values carry NO domain/spec prefix (CORS is a preset, not an id namespace; the
- * framing rules are not `http.framing.*`); the id names the subject header/mechanism and the
- * behaviour. The frozen roster here is the authority the disposition table is checked against.
+ * once shipped. Values carry NO domain/spec prefix (an id names the subject header/mechanism and the
+ * behaviour, never its domain — CORS is not an id namespace, the framing rules are not
+ * `http.framing.*`). The frozen roster here is the authority the disposition table is checked against.
  */
 export enum Rule {
   // HTTP/1.1 framing (RFC 9112)

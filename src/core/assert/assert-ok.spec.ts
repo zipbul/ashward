@@ -7,7 +7,7 @@ import { InconclusiveReason, Rule, Verdict } from '../contract/enums';
 import { InconclusiveHandling } from '../report/enums';
 import { buildReport } from '../report/report';
 import { AshwardError } from './ashward-error';
-import { assertConformance } from './assert-conformance';
+import { assertOk } from './assert-ok';
 
 const clause = (verdict: Verdict, reason?: ClauseReason): ClauseResult => ({
   ruleId: Rule.DuplicateContentLength,
@@ -15,7 +15,7 @@ const clause = (verdict: Verdict, reason?: ClauseReason): ClauseResult => ({
   ...(reason !== undefined ? { reason } : {}),
 });
 
-/** Run `assertConformance` and return the thrown AshwardError, narrowed without a cast. */
+/** Run `assertOk` and return the thrown AshwardError, narrowed without a cast. */
 function captureAshwardError(run: () => void): AshwardError {
   try {
     run();
@@ -25,62 +25,62 @@ function captureAshwardError(run: () => void): AshwardError {
     }
     throw error;
   }
-  throw new Error('expected assertConformance to throw an AshwardError');
+  throw new Error('expected assertOk to throw an AshwardError');
 }
 
 test('does not throw when the report is ok', () => {
   const report = buildReport([clause(Verdict.Pass)]);
   expect(() => {
-    assertConformance(report);
+    assertOk(report);
   }).not.toThrow();
 });
 
 test('throws AshwardError when a rule fails under the default policy', () => {
   const report = buildReport([clause(Verdict.Fail)]);
   expect(() => {
-    assertConformance(report);
+    assertOk(report);
   }).toThrow(AshwardError);
 });
 
 test('throws under failOn Warn when a warn is present', () => {
   const report = buildReport([clause(Verdict.Warn)]);
   expect(() => {
-    assertConformance(report, { failOn: Verdict.Warn });
+    assertOk(report, { failOn: Verdict.Warn });
   }).toThrow(AshwardError);
 });
 
 test('does not throw for a warn under the default policy', () => {
   const report = buildReport([clause(Verdict.Warn)]);
   expect(() => {
-    assertConformance(report);
+    assertOk(report);
   }).not.toThrow();
 });
 
 test('throws under the default policy for a connectivity inconclusive (unreachable server)', () => {
   const report = buildReport([clause(Verdict.Inconclusive, InconclusiveReason.ConnectionRefused)]);
   expect(() => {
-    assertConformance(report);
+    assertOk(report);
   }).toThrow(AshwardError);
 });
 
 test('does not throw for an undecidable inconclusive under the default policy', () => {
   const report = buildReport([clause(Verdict.Inconclusive, InconclusiveReason.AmbiguousFraming)]);
   expect(() => {
-    assertConformance(report);
+    assertOk(report);
   }).not.toThrow();
 });
 
 test('throws for an undecidable inconclusive when handling is escalated to Fail', () => {
   const report = buildReport([clause(Verdict.Inconclusive, InconclusiveReason.AmbiguousFraming)]);
   expect(() => {
-    assertConformance(report, { inconclusive: InconclusiveHandling.Fail });
+    assertOk(report, { inconclusive: InconclusiveHandling.Fail });
   }).toThrow(AshwardError);
 });
 
 test('the thrown error carries only the blocking results', () => {
   const report = buildReport([clause(Verdict.Pass), clause(Verdict.Fail)]);
   const error = captureAshwardError(() => {
-    assertConformance(report);
+    assertOk(report);
   });
   expect(error.results).toEqual([clause(Verdict.Fail)]);
 });

@@ -9,7 +9,7 @@ import { clause, conditional, differential, direct, fetchAnchor, pnaSection, rfc
 /**
  * A neutral, editorial identity for one WHATWG Fetch CORS requirement — the join key between this
  * catalog's clauses, its dispositions, and the rules that test them. Frozen kebab like `Rule`, with
- * NO `§`, document, or preset prefix: the digest's `§N` numbering is a per-entry comment, never the
+ * NO `§`, document, or domain prefix: the digest's `§N` numbering is a per-entry comment, never the
  * key. Local to this module, so adding another standard never touches it.
  */
 enum FetchClauseId {
