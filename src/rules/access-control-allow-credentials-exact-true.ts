@@ -3,9 +3,9 @@ import { fieldValues } from '../http/decode/fields';
 import { ACCESS_CONTROL_ALLOW_CREDENTIALS } from '../normative/header-names';
 import { CREDENTIALS_TRUE } from '../normative/literals';
 import { ClauseId } from '../standards/enums';
-import { refsFor } from './_kit/clause-refs';
-import { defineProbeRule } from './_kit/define-probe-rule';
-import { PROBE_ORIGIN } from './_kit/probe-fixtures';
+import { refsFor } from './kit/clause-refs';
+import { defineHttpResponseRule } from './kit/http-response-rule';
+import { PROBE_ORIGIN } from './kit/probe-fixtures';
 
 /**
  * STANDARDS §1.4 — `Access-Control-Allow-Credentials` MUST be generated as the exact bytes `true`.
@@ -14,7 +14,7 @@ import { PROBE_ORIGIN } from './_kit/probe-fixtures';
  * legal value. All fail (a MUST); only absence is exempt, since §1.4 governs the value when it is
  * generated, not whether it is (Skip). Two field lines combine (0x2C 0x20) and also fail (§2.4).
  */
-export const accessControlAllowCredentialsExactTrue = defineProbeRule({
+export const accessControlAllowCredentialsExactTrue = defineHttpResponseRule({
   id: Rule.AccessControlAllowCredentialsExactTrue,
   probes: [{ origin: PROBE_ORIGIN }],
   normative: refsFor(ClauseId.AllowCredentialsExactTrue, ClauseId.AllowOriginAndCredentialsOnce),

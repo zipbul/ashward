@@ -1,17 +1,16 @@
 import { test, expect } from 'bun:test';
 
-import type { ProbeFn } from '../../core/contract/types';
-import type { ProbeResult } from '../../core/driver/interfaces';
-import type { Target } from '../../core/engine/interfaces';
-import type { ProbeRuleSpec } from './define-probe-rule';
+import type { HttpTarget, ProbeFn } from '../../http/context';
+import type { ProbeResult } from '../../transport/tcp/interfaces';
+import type { HttpResponseRuleSpec } from './http-response-rule';
 
 import { InconclusiveReason, Rule, Verdict } from '../../core/contract/enums';
-import { TerminationCause } from '../../core/driver/enums';
 import { WHATWG_FETCH } from '../../standards/documents';
 import { LocatorKind, ReqLevel } from '../../standards/enums';
-import { defineProbeRule } from './define-probe-rule';
+import { TerminationCause } from '../../transport/tcp/enums';
+import { defineHttpResponseRule } from './http-response-rule';
 
-const TARGET: Target = { host: 'origin.test', port: 80, path: '/', timeoutMs: 500 };
+const TARGET: HttpTarget = { host: 'origin.test', port: 80, path: '/', timeoutMs: 500 };
 const bytes = (s: string): Uint8Array => new TextEncoder().encode(s);
 const result = (raw: string, termination = TerminationCause.Fin): ProbeResult => ({ response: bytes(raw), termination });
 const okHead = 'HTTP/1.1 200 OK\r\nAccess-Control-Allow-Origin: *\r\n\r\n';
@@ -21,7 +20,7 @@ const probeSequence = (results: readonly ProbeResult[]): ProbeFn => {
   return async () => Promise.resolve(results[call++]!);
 };
 
-const spec = (over: Partial<ProbeRuleSpec>): ProbeRuleSpec => ({
+const spec = (over: Partial<HttpResponseRuleSpec>): HttpResponseRuleSpec => ({
   id: Rule.AccessControlAllowOriginGrammar,
   normative: [{ doc: WHATWG_FETCH, locator: { kind: LocatorKind.Anchor, value: 'x' }, req: ReqLevel.Must }],
   probes: [{ origin: 'https://o.test' }],
@@ -29,8 +28,8 @@ const spec = (over: Partial<ProbeRuleSpec>): ProbeRuleSpec => ({
   ...over,
 });
 
-const run = async (over: Partial<ProbeRuleSpec>, results: readonly ProbeResult[]) =>
-  defineProbeRule(spec(over)).run({ probe: probeSequence(results), target: TARGET });
+const run = async (over: Partial<HttpResponseRuleSpec>, results: readonly ProbeResult[]) =>
+  defineHttpResponseRule(spec(over)).run({ probe: probeSequence(results), target: TARGET });
 
 test('returns the judge verdict when every head parses', async () => {
   const out = await run({ judge: () => ({ verdict: Verdict.Fail }) }, [result(okHead)]);
@@ -95,7 +94,7 @@ test('sends one probe per spec entry in order', async () => {
     sent.push(new TextDecoder().decode(b));
     return Promise.resolve(result(okHead));
   };
-  await defineProbeRule(spec({ probes: [{ origin: 'https://a.test' }, { origin: 'https://b.test' }] })).run({
+  await defineHttpResponseRule(spec({ probes: [{ origin: 'https://a.test' }, { origin: 'https://b.test' }] })).run({
     probe,
     target: TARGET,
   });

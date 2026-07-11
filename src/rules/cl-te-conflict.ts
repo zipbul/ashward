@@ -1,7 +1,7 @@
 import { Rule } from '../core/contract/enums';
 import { RFC9112 } from '../standards/documents';
 import { LocatorKind, ReqLevel } from '../standards/enums';
-import { defineFramingRule } from './_kit/framing-rule';
+import { defineFramingRule } from './kit/framing-rule';
 
 /**
  * RFC 9112 §6.1: when both Content-Length and Transfer-Encoding are present the framing is

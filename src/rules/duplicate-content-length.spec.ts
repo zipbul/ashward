@@ -1,10 +1,10 @@
 import { test, expect } from 'bun:test';
 
-import type { ProbeFn } from '../core/contract/types';
-import type { ProbeResult } from '../core/driver/interfaces';
+import type { ProbeFn } from '../http/context';
+import type { ProbeResult } from '../transport/tcp/interfaces';
 
 import { Rule, Verdict, InconclusiveReason } from '../core/contract/enums';
-import { TerminationCause } from '../core/driver/enums';
+import { TerminationCause } from '../transport/tcp/enums';
 import { duplicateContentLength } from './duplicate-content-length';
 
 const TARGET = { host: 'origin.test', port: 80, path: '/', timeoutMs: 500 };

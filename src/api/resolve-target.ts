@@ -1,4 +1,4 @@
-import type { Target } from '../core/engine/interfaces';
+import type { HttpTarget } from '../http/context';
 
 import { DEFAULT_TIMEOUT_MS, HTTP_PORT } from './constants';
 
@@ -9,7 +9,7 @@ import { DEFAULT_TIMEOUT_MS, HTTP_PORT } from './constants';
  * read handshake bytes back; under the fail-closed default that surfaces as a false-red on every
  * probe. Rejecting it up front as a setup error is the honest behaviour until TLS lands.
  */
-export function resolveTarget(url: string): Target {
+export function resolveTarget(url: string): HttpTarget {
   const parsed = new URL(url); // throws TypeError on an unparseable URL
 
   if (parsed.protocol === 'https:') {

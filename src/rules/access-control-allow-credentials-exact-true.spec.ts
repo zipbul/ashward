@@ -1,13 +1,12 @@
 import { test, expect } from 'bun:test';
 
-import type { ProbeFn } from '../core/contract/types';
-import type { Target } from '../core/engine/interfaces';
+import type { HttpTarget, ProbeFn } from '../http/context';
 
 import { Rule, InconclusiveReason, SkipReason, Verdict } from '../core/contract/enums';
-import { TerminationCause } from '../core/driver/enums';
+import { TerminationCause } from '../transport/tcp/enums';
 import { accessControlAllowCredentialsExactTrue } from './access-control-allow-credentials-exact-true';
 
-const TARGET: Target = { host: 'origin.test', port: 80, path: '/', timeoutMs: 500 };
+const TARGET: HttpTarget = { host: 'origin.test', port: 80, path: '/', timeoutMs: 500 };
 
 const respond =
   (raw: string, termination = TerminationCause.Fin): ProbeFn =>

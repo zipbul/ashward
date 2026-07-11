@@ -1,4 +1,4 @@
-import type { Target } from '../../core/engine/interfaces';
+import type { HttpTarget } from '../../http/context';
 import type { HeaderField } from '../../http/decode/interfaces';
 
 import { craftRequest } from '../../http/encode/request';
@@ -39,7 +39,7 @@ type ProbeSpec = SimpleProbe | PreflightProbe;
 
 /** The `Host` authority for the target: `host`, or `host:port` for a non-default port, with an
  *  IPv6 literal bracketed. Sending only the bare host would misroute a vhost/port-scoped origin. */
-function authorityFor(target: Target): string {
+function authorityFor(target: HttpTarget): string {
   const host = target.host.includes(':') && !target.host.startsWith('[') ? `[${target.host}]` : target.host;
   return target.port === 80 ? host : `${host}:${target.port}`;
 }
@@ -50,7 +50,7 @@ function authorityFor(target: Target): string {
  * `Cookie`. `craftRequest` rejects any CR/LF in these fields, so a forged origin or header value
  * cannot inject a second header or a Cookie.
  */
-export function craftProbe(target: Target, probe: ProbeSpec): Uint8Array {
+export function craftProbe(target: HttpTarget, probe: ProbeSpec): Uint8Array {
   const host = authorityFor(target);
   const headers: HeaderField[] = [{ name: ORIGIN, value: probe.origin }];
 

@@ -1,6 +1,6 @@
 import type { FramingObservation } from './interfaces';
 
-import { TerminationCause } from '../core/driver/enums';
+import { TerminationCause } from '../transport/tcp/enums';
 import { FramingOutcome } from './enums';
 
 /**

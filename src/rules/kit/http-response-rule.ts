@@ -1,13 +1,14 @@
-import type { ClauseResult, Evidence, RuleContext, RuleDef } from '../../core/contract/interfaces';
+import type { ClauseResult, Evidence, RuleDef } from '../../core/contract/interfaces';
 import type { ClauseReason } from '../../core/contract/types';
-import type { ProbeResult } from '../../core/driver/interfaces';
+import type { HttpRuleContext } from '../../http/context';
 import type { ResponseHead } from '../../http/decode/interfaces';
 import type { NormativeRef, Taxonomy } from '../../standards/interfaces';
+import type { ProbeResult } from '../../transport/tcp/interfaces';
 import type { ProbeSpec } from './craft-probe';
 
 import { InconclusiveReason, Verdict } from '../../core/contract/enums';
-import { TerminationCause } from '../../core/driver/enums';
 import { parseResponseHead } from '../../http/decode/head-parse';
+import { TerminationCause } from '../../transport/tcp/enums';
 import { craftProbe } from './craft-probe';
 
 /** A rule's decision over the parsed response heads. `evidenceIndex` names which probe decided it,
@@ -18,8 +19,8 @@ interface Judgment {
   readonly evidenceIndex?: number;
 }
 
-interface ProbeRuleSpec {
-  readonly id: RuleDef['id'];
+interface HttpResponseRuleSpec {
+  readonly id: RuleDef<HttpRuleContext>['id'];
   readonly normative: readonly NormativeRef[];
   readonly tags?: Taxonomy;
   /** The well-formed probes this rule sends, in order, each over its own connection. */
@@ -33,19 +34,19 @@ function withEvidence(evidence: Evidence | undefined): { evidence?: Evidence } {
 }
 
 /**
- * Build a probe rule: craft the rule's well-formed probes against the caller's target, send them,
- * parse every response head, and hand the heads to a pure judge. Transport trouble never reaches
- * the judge — an unreachable peer is a connectivity-inconclusive, an unparseable head is a
+ * Build an HTTP-response rule: craft the rule's well-formed probes against the caller's target, send
+ * them, parse every response head, and hand the heads to a pure judge. Transport trouble never
+ * reaches the judge — an unreachable peer is a connectivity-inconclusive, an unparseable head is a
  * malformed-response inconclusive — so a rule only ever reasons about headers a browser would see.
  */
-export function defineProbeRule(spec: ProbeRuleSpec): RuleDef {
+export function defineHttpResponseRule(spec: HttpResponseRuleSpec): RuleDef<HttpRuleContext> {
   const evidenceAt = (requests: readonly Uint8Array[], probed: readonly ProbeResult[], index: number): Evidence | undefined => {
     const result = probed[index];
     const request = requests[index];
     if (result === undefined || request === undefined) {
       return undefined;
     }
-    return { request, response: result.response, termination: result.termination };
+    return { request, response: result.response, outcome: result.termination };
   };
 
   return {
@@ -53,7 +54,7 @@ export function defineProbeRule(spec: ProbeRuleSpec): RuleDef {
     normative: spec.normative,
     ...(spec.tags !== undefined ? { tags: spec.tags } : {}),
 
-    async run(context: RuleContext): Promise<ClauseResult> {
+    async run(context: HttpRuleContext): Promise<ClauseResult> {
       let requests: readonly Uint8Array[];
       try {
         requests = spec.probes.map(options => craftProbe(context.target, options));
@@ -102,4 +103,4 @@ export function defineProbeRule(spec: ProbeRuleSpec): RuleDef {
   };
 }
 
-export type { Judgment, ProbeRuleSpec };
+export type { Judgment, HttpResponseRuleSpec };

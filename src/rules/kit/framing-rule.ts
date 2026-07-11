@@ -1,12 +1,13 @@
 import type { Rule } from '../../core/contract/enums';
-import type { RuleContext, ClauseResult, RuleDef } from '../../core/contract/interfaces';
+import type { ClauseResult, RuleDef } from '../../core/contract/interfaces';
+import type { HttpRuleContext } from '../../http/context';
 import type { NormativeRef, Taxonomy } from '../../standards/interfaces';
 
 import { Verdict, InconclusiveReason } from '../../core/contract/enums';
-import { TerminationCause } from '../../core/driver/enums';
 import { parseStatusLine } from '../../http/decode/head-lex';
 import { FramingOutcome } from '../../http/enums';
 import { classifyFramingOutcome } from '../../http/reject';
+import { TerminationCause } from '../../transport/tcp/enums';
 
 /** Map how the exchange ended to the typed reason an inconclusive verdict carries. */
 function inconclusiveReasonFor(termination: TerminationCause): InconclusiveReason {
@@ -32,13 +33,13 @@ export interface FramingRuleSpec {
  * (Pass), processed it (Fail — the parser discrepancy), or gave nothing to conclude on.
  * The judgment is shared; rules differ only in the bytes they send and what they cite.
  */
-export function defineFramingRule(spec: FramingRuleSpec): RuleDef {
+export function defineFramingRule(spec: FramingRuleSpec): RuleDef<HttpRuleContext> {
   return {
     id: spec.id,
     normative: spec.normative,
     ...(spec.tags !== undefined ? { tags: spec.tags } : {}),
 
-    async run(context: RuleContext): Promise<ClauseResult> {
+    async run(context: HttpRuleContext): Promise<ClauseResult> {
       const probed = await context.probe(spec.request);
       const statusLine = parseStatusLine(probed.response);
       const outcome = classifyFramingOutcome({ statusLine, termination: probed.termination });
@@ -46,7 +47,7 @@ export function defineFramingRule(spec: FramingRuleSpec): RuleDef {
       const evidence = {
         request: spec.request,
         response: probed.response,
-        termination: probed.termination,
+        outcome: probed.termination,
       };
 
       if (outcome === FramingOutcome.Rejected) {

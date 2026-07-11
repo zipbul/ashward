@@ -1,6 +1,6 @@
 import type { Report } from '../core/report/interfaces';
 
-import { runRules } from '../core/engine/run';
+import { runHttp } from '../http/run';
 import { BUILTIN_RULES } from '../rules/constants';
 import { resolveTarget } from './resolve-target';
 
@@ -9,5 +9,5 @@ import { resolveTarget } from './resolve-target';
  * A plain async function — works identically under any test runner and outside one.
  */
 export async function ashward(url: string): Promise<Report> {
-  return runRules(resolveTarget(url), BUILTIN_RULES);
+  return runHttp(resolveTarget(url), BUILTIN_RULES);
 }

@@ -1,11 +1,11 @@
 import { test, expect } from 'bun:test';
 
-import type { Target } from '../../core/engine/interfaces';
+import type { HttpTarget } from '../../http/context';
 
 import { craftProbe } from './craft-probe';
 
-const TARGET: Target = { host: 'origin.test', port: 80, path: '/resource', timeoutMs: 500 };
-const craft = (target: Target, opts: Parameters<typeof craftProbe>[1]): string =>
+const TARGET: HttpTarget = { host: 'origin.test', port: 80, path: '/resource', timeoutMs: 500 };
+const craft = (target: HttpTarget, opts: Parameters<typeof craftProbe>[1]): string =>
   new TextDecoder().decode(craftProbe(target, opts));
 
 test('aims the request line at the target path', () => {

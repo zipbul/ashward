@@ -1,10 +1,10 @@
 import { test, expect } from 'bun:test';
 
-import type { ProbeFn } from '../core/contract/types';
+import type { ProbeFn } from '../http/context';
 
 import { Verdict } from '../core/contract/enums';
-import { probe as sendProbe } from '../core/driver/socket-probe';
 import { startRawOrigin } from '../testkit/origin/raw-origin';
+import { probe as sendProbe } from '../transport/tcp/socket-probe';
 import { duplicateContentLength } from './duplicate-content-length';
 
 const TARGET = { host: 'origin.test', port: 80, path: '/', timeoutMs: 500 };

@@ -1,14 +1,13 @@
 import { test, expect } from 'bun:test';
 
-import type { ProbeFn } from '../core/contract/types';
-import type { Target } from '../core/engine/interfaces';
+import type { HttpTarget, ProbeFn } from '../http/context';
 
 import { Verdict } from '../core/contract/enums';
-import { probe as sendProbe } from '../core/driver/socket-probe';
 import { startRawOrigin } from '../testkit/origin/raw-origin';
+import { probe as sendProbe } from '../transport/tcp/socket-probe';
 import { accessControlAllowCredentialsExactTrue } from './access-control-allow-credentials-exact-true';
 
-const context = (port: number): { probe: ProbeFn; target: Target } => ({
+const context = (port: number): { probe: ProbeFn; target: HttpTarget } => ({
   probe: async bytes => sendProbe({ host: '127.0.0.1', port, bytes, timeoutMs: 500 }),
   target: { host: '127.0.0.1', port, path: '/', timeoutMs: 500 },
 });
