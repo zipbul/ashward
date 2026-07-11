@@ -1,17 +1,13 @@
 import type { RuleDef } from '../core/contract/interfaces';
 import type { HttpRuleContext } from '../http/context';
 
-import { accessControlAllowCredentialsExactTrue } from './access-control-allow-credentials-exact-true';
-import { clTeConflict } from './cl-te-conflict';
-import { duplicateContentLength } from './duplicate-content-length';
+import { cors } from '../presets/cors';
+import { framing } from '../presets/framing';
 
 /**
- * The built-in rules run by default — HTTP/1.1 framing plus the WHATWG Fetch CORS rules landing
- * one at a time against the frozen `Rule` roster and the disposition table. `ALL_RULES` is a subset
- * of `Rule` while the CORS roster is implemented; the disposition spec tracks the remaining gap.
+ * The built-in rules run by default — the union of the shipped presets (HTTP/1.1 framing + the
+ * WHATWG Fetch CORS rules). Composing presets, not hand-listing rules, is what keeps "cors" a
+ * selection of ids rather than a structural thing. As the CORS roster lands, the `cors` preset
+ * grows and this composition tracks it; the catalog spec tracks the remaining gap.
  */
-export const BUILTIN_RULES: readonly RuleDef<HttpRuleContext>[] = [
-  duplicateContentLength,
-  clTeConflict,
-  accessControlAllowCredentialsExactTrue,
-];
+export const BUILTIN_RULES: readonly RuleDef<HttpRuleContext>[] = [...framing, ...cors];

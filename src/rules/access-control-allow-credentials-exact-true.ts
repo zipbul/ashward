@@ -2,7 +2,7 @@ import { Rule, SkipReason, Verdict } from '../core/contract/enums';
 import { fieldValues } from '../http/decode/fields';
 import { ACCESS_CONTROL_ALLOW_CREDENTIALS } from '../normative/header-names';
 import { CREDENTIALS_TRUE } from '../normative/literals';
-import { ClauseId } from '../standards/enums';
+import { FetchClauseId } from '../standards/catalog/fetch';
 import { refsFor } from './kit/clause-refs';
 import { defineHttpResponseRule } from './kit/http-response-rule';
 import { PROBE_ORIGIN } from './kit/probe-fixtures';
@@ -17,7 +17,7 @@ import { PROBE_ORIGIN } from './kit/probe-fixtures';
 export const accessControlAllowCredentialsExactTrue = defineHttpResponseRule({
   id: Rule.AccessControlAllowCredentialsExactTrue,
   probes: [{ origin: PROBE_ORIGIN }],
-  normative: refsFor(ClauseId.AllowCredentialsExactTrue, ClauseId.AllowOriginAndCredentialsOnce),
+  normative: refsFor(FetchClauseId.AllowCredentialsExactTrue, FetchClauseId.AllowOriginAndCredentialsOnce),
 
   judge(heads) {
     const [head] = heads;
