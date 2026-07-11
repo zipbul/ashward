@@ -32,14 +32,11 @@ test('every built-in rule id is a member of the frozen Rule roster', () => {
   expect(strays).toEqual([]);
 });
 
-test('the implemented rules are a subset of the frozen roster — CORS lands incrementally', () => {
-  // Honest freeze accounting: the `Rule` enum freezes the full design roster, but implementation
-  // is incremental. This is the explicit not-yet-implemented gap, not a silent one — as each CORS
-  // rule lands it joins BUILTIN_RULES and this gap shrinks.
+test('every rule in the frozen roster is implemented — the roster is complete', () => {
+  // The `Rule` enum freezes the full design roster; every member now ships in a preset, so the
+  // implemented set equals the roster exactly. A frozen id with no shipped rule fails here loudly.
   const implemented = new Set(BUILTIN_RULES.map(rule => rule.id));
-  expect(implemented).toEqual(
-    new Set([Rule.DuplicateContentLength, Rule.ClTeConflict, Rule.AccessControlAllowCredentialsExactTrue]),
-  );
-  const notYetImplemented = Object.values(Rule).filter(id => !implemented.has(id));
-  expect(notYetImplemented.length).toBe(Object.values(Rule).length - implemented.size);
+  const missing = Object.values(Rule).filter(id => !implemented.has(id));
+  expect(missing).toEqual([]);
+  expect(implemented.size).toBe(Object.values(Rule).length);
 });
