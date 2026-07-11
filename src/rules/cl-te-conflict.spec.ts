@@ -24,10 +24,10 @@ test('reports its own rule id', async () => {
   expect(result.ruleId).toBe(Rule.ClTeConflict);
 });
 
-test('fails when the server accepts a Content-Length + Transfer-Encoding request', async () => {
+test('warns when the server accepts a Content-Length + Transfer-Encoding request (§6.1 is a SHOULD)', async () => {
   const probe = probeReturning(response('HTTP/1.1 200 OK\r\n\r\n', TerminationCause.Fin));
   const result = await clTeConflict.run({ probe, target: TARGET });
-  expect(result.verdict).toBe(Verdict.Fail);
+  expect(result.verdict).toBe(Verdict.Warn);
 });
 
 test('passes when the server rejects the conflicting request', async () => {

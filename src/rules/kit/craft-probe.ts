@@ -39,7 +39,7 @@ type ProbeSpec = SimpleProbe | PreflightProbe;
 
 /** The `Host` authority for the target: `host`, or `host:port` for a non-default port, with an
  *  IPv6 literal bracketed. Sending only the bare host would misroute a vhost/port-scoped origin. */
-function authorityFor(target: HttpTarget): string {
+export function authorityFor(target: HttpTarget): string {
   const host = target.host.includes(':') && !target.host.startsWith('[') ? `[${target.host}]` : target.host;
   return target.port === 80 ? host : `${host}:${target.port}`;
 }

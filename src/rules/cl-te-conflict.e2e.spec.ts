@@ -13,11 +13,11 @@ const boundProbe =
   async bytes =>
     sendProbe({ host: '127.0.0.1', port, bytes, timeoutMs: 500 });
 
-test('flags a permissive origin that accepts a CL+TE request over a real socket', async () => {
+test('warns on a permissive origin that accepts a CL+TE request over a real socket', async () => {
   const origin = await startRawOrigin('HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n');
   try {
     const result = await clTeConflict.run({ probe: boundProbe(origin.port), target: TARGET });
-    expect(result.verdict).toBe(Verdict.Fail);
+    expect(result.verdict).toBe(Verdict.Warn);
   } finally {
     await origin.close();
   }

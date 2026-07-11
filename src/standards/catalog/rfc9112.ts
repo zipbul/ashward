@@ -1,6 +1,7 @@
 import type { Catalog, Clause, Disposition } from '../catalog-types';
 
 import { Rule } from '../../core/contract/enums';
+import { Severity } from '../disposition-enums';
 import { RFC9110, RFC9112 } from '../documents';
 import { ReqLevel } from '../enums';
 import { clause, direct, rfc } from './build';
@@ -21,15 +22,15 @@ const CLAUSES: readonly Clause[] = [
   ),
   clause(
     Rfc9112ClauseId.ClTeConflictRejected, // §6.1
-    ReqLevel.Must,
+    ReqLevel.Should,
     [rfc(RFC9112, '6.1')],
-    'Content-Length + Transfer-Encoding is ambiguous framing and must be treated as an error',
+    'Content-Length + Transfer-Encoding is ambiguous framing and ought to be handled as an error',
   ),
 ];
 
 const DISPOSITIONS: readonly Disposition[] = [
   { clause: Rfc9112ClauseId.DuplicateContentLengthRejected, rules: [direct(Rule.DuplicateContentLength)] },
-  { clause: Rfc9112ClauseId.ClTeConflictRejected, rules: [direct(Rule.ClTeConflict)] },
+  { clause: Rfc9112ClauseId.ClTeConflictRejected, rules: [direct(Rule.ClTeConflict, Severity.Warn)] },
 ];
 
 const SNAPSHOT: readonly string[] = ['duplicate-content-length-rejected', 'cl-te-conflict-rejected'];
