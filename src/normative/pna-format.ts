@@ -1,8 +1,3 @@
-import type { Citation } from '../standards/interfaces';
-
-import { WICG_PNA } from '../standards/documents';
-import { LocatorKind } from '../standards/enums';
-
 /** PNA §3.4.2 `Private-Network-Access-ID`: six colon-separated hex bytes, e.g. `01:23:45:67:89:0A`. */
 const PNA_ID = /^[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}$/;
 /** PNA §3.4.2 `Private-Network-Access-Name`: `/^[a-z0-9_\-.]+$/`. */
@@ -16,8 +11,3 @@ export function isPnaId(value: string): boolean {
 export function isPnaName(value: string): boolean {
   return PNA_NAME.test(value) && value.length <= 248;
 }
-
-export const PNA_FORMAT_CITATION: Citation = {
-  doc: WICG_PNA,
-  locator: { kind: LocatorKind.Section, value: '3.4.2' },
-};

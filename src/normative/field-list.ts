@@ -1,8 +1,3 @@
-import type { Citation } from '../standards/interfaces';
-
-import { RFC9110 } from '../standards/documents';
-import { LocatorKind } from '../standards/enums';
-
 /**
  * Split a comma-separated field value into its elements (RFC 9110 §5.6.1 `#rule`), trimming the
  * optional whitespace around each. Empty elements are dropped, so `GET,, POST` yields two methods.
@@ -24,8 +19,3 @@ export function splitFieldList(value: string): readonly string[] {
 export function hasEmptyListElement(value: string): boolean {
   return value.split(',').some(element => element.trim().length === 0);
 }
-
-export const FIELD_LIST_CITATION: Citation = {
-  doc: RFC9110,
-  locator: { kind: LocatorKind.Section, value: '5.6.1' },
-};

@@ -1,7 +1,6 @@
 import { test, expect } from 'bun:test';
 
-import { WHATWG_FETCH } from '../standards/documents';
-import { isSerializedOrigin, SERIALIZED_ORIGIN_CITATION } from './serialized-origin';
+import { isSerializedOrigin } from './serialized-origin';
 
 test.each([
   // canonical serialized origins
@@ -37,9 +36,4 @@ test.each([
   ['https://[1:2:3:4:5:6:7::]', false],
 ])('isSerializedOrigin(%p) is %p', (value, expected) => {
   expect(isSerializedOrigin(value)).toBe(expected);
-});
-
-test('cites Fetch #origin-header (which defers to WHATWG URL)', () => {
-  expect(SERIALIZED_ORIGIN_CITATION.doc).toBe(WHATWG_FETCH);
-  expect(SERIALIZED_ORIGIN_CITATION.locator.value).toBe('origin-header');
 });

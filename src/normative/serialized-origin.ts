@@ -1,8 +1,3 @@
-import type { Citation } from '../standards/interfaces';
-
-import { WHATWG_FETCH } from '../standards/documents';
-import { LocatorKind } from '../standards/enums';
-
 /**
  * A serialized origin per Fetch `#origin-header`, which defers to WHATWG URL — so this is implemented
  * against the real URL parser, not a hand-rolled ABNF. A conformant server emits the CANONICAL
@@ -27,8 +22,3 @@ export function isSerializedOrigin(value: string): boolean {
   }
   return url.origin === value;
 }
-
-export const SERIALIZED_ORIGIN_CITATION: Citation = {
-  doc: WHATWG_FETCH,
-  locator: { kind: LocatorKind.Anchor, value: 'origin-header' },
-};

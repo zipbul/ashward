@@ -19,6 +19,11 @@ test('fails capitalized True', async () => {
   expect((await run('Access-Control-Allow-Private-Network: True')).verdict).toBe(Verdict.Fail);
 });
 
+test('fails a repeated header (two lines combine to "true, true", not the literal true)', async () => {
+  const out = await run('Access-Control-Allow-Private-Network: true\r\nAccess-Control-Allow-Private-Network: true');
+  expect(out.verdict).toBe(Verdict.Fail);
+});
+
 test('skips when Access-Control-Allow-Private-Network is absent', async () => {
   const out = await run('X-Other: y');
   expect(out.verdict).toBe(Verdict.Skip);

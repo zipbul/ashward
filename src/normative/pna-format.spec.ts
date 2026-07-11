@@ -1,7 +1,6 @@
 import { test, expect } from 'bun:test';
 
-import { WICG_PNA } from '../standards/documents';
-import { isPnaId, isPnaName, PNA_FORMAT_CITATION } from './pna-format';
+import { isPnaId, isPnaName } from './pna-format';
 
 test.each([
   ['01:23:45:67:89:0A', true],
@@ -27,9 +26,4 @@ test.each([
 test('isPnaName enforces the 248 code-unit bound', () => {
   expect(isPnaName('a'.repeat(248))).toBe(true);
   expect(isPnaName('a'.repeat(249))).toBe(false);
-});
-
-test('cites PNA §3.4.2', () => {
-  expect(PNA_FORMAT_CITATION.doc).toBe(WICG_PNA);
-  expect(PNA_FORMAT_CITATION.locator.value).toBe('3.4.2');
 });

@@ -1,7 +1,6 @@
 import { test, expect } from 'bun:test';
 
-import { RFC9110 } from '../standards/documents';
-import { FIELD_LIST_CITATION, hasEmptyListElement, splitFieldList } from './field-list';
+import { hasEmptyListElement, splitFieldList } from './field-list';
 
 test('splitFieldList trims each element', () => {
   expect(splitFieldList('GET, POST ,PUT')).toEqual(['GET', 'POST', 'PUT']);
@@ -24,9 +23,4 @@ test.each([
   ['', true],
 ])('hasEmptyListElement(%p) is %p', (value, expected) => {
   expect(hasEmptyListElement(value)).toBe(expected);
-});
-
-test('cites RFC 9110 §5.6.1 (#rule) as its source production', () => {
-  expect(FIELD_LIST_CITATION.doc).toBe(RFC9110);
-  expect(FIELD_LIST_CITATION.locator.value).toBe('5.6.1');
 });
