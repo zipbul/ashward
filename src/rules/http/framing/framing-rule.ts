@@ -1,12 +1,12 @@
-import type { Rule } from '../../../../core/contract/enums';
-import type { RuleContext, ClauseResult, RuleDef } from '../../../../core/contract/interfaces';
-import type { NormativeRef, Taxonomy } from '../../../../standards/interfaces';
+import type { Rule } from '../../../core/contract/enums';
+import type { RuleContext, ClauseResult, RuleDef } from '../../../core/contract/interfaces';
+import type { NormativeRef, Taxonomy } from '../../../standards/interfaces';
 
-import { Verdict, InconclusiveReason } from '../../../../core/contract/enums';
-import { TerminationCause } from '../../../../core/driver/enums';
-import { parseStatusLine } from '../../../../http/decode/head-lex';
-import { FramingOutcome } from '../../../../http/enums';
-import { classifyFramingOutcome } from '../../../../http/reject';
+import { Verdict, InconclusiveReason } from '../../../core/contract/enums';
+import { TerminationCause } from '../../../core/driver/enums';
+import { parseStatusLine } from '../../../http/decode/head-lex';
+import { FramingOutcome } from '../../../http/enums';
+import { classifyFramingOutcome } from '../../../http/reject';
 
 export interface FramingRuleSpec {
   readonly id: Rule;

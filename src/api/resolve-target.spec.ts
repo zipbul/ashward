@@ -2,24 +2,25 @@ import { test, expect } from 'bun:test';
 
 import { resolveTarget } from './resolve-target';
 
-test('extracts host and explicit port from an http URL', () => {
-  expect(resolveTarget('http://example.test:8080/path')).toEqual({
+test('extracts host, explicit port, and request-target path from an http URL', () => {
+  expect(resolveTarget('http://example.test:8080/api/cors')).toEqual({
     host: 'example.test',
     port: 8080,
+    path: '/api/cors',
     timeoutMs: 5000,
   });
 });
 
+test('defaults the path to / when the URL has none', () => {
+  expect(resolveTarget('http://example.test').path).toBe('/');
+});
+
+test('preserves the query string in the request-target', () => {
+  expect(resolveTarget('http://example.test/x?q=1').path).toBe('/x?q=1');
+});
+
 test('defaults to port 80 for http without an explicit port', () => {
   expect(resolveTarget('http://example.test').port).toBe(80);
-});
-
-test('defaults to port 443 for https without an explicit port', () => {
-  expect(resolveTarget('https://example.test').port).toBe(443);
-});
-
-test('keeps an explicit port over the https default', () => {
-  expect(resolveTarget('https://example.test:9443').port).toBe(9443);
 });
 
 test('preserves an IPv4 host', () => {
@@ -30,6 +31,10 @@ test('throws on an unparseable URL', () => {
   expect(() => resolveTarget('not a url')).toThrow();
 });
 
-test('throws on an unsupported protocol', () => {
+test('throws on a non-http protocol', () => {
   expect(() => resolveTarget('ftp://example.test')).toThrow('unsupported protocol');
+});
+
+test('throws on https because the driver has no TLS — silent https would false-red every probe', () => {
+  expect(() => resolveTarget('https://example.test')).toThrow('https');
 });

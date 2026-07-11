@@ -1,6 +1,6 @@
-import { Rule } from '../../../../core/contract/enums';
-import { RFC9112 } from '../../../../standards/constants';
-import { LocatorKind, ReqLevel } from '../../../../standards/enums';
+import { Rule } from '../../../core/contract/enums';
+import { RFC9112 } from '../../../standards/constants';
+import { LocatorKind, ReqLevel } from '../../../standards/enums';
 import { defineFramingRule } from './framing-rule';
 
 /**

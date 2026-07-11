@@ -1,10 +1,10 @@
 import { test, expect } from 'bun:test';
 
-import type { ProbeFn } from '../../../../core/contract/types';
-import type { ProbeResult } from '../../../../core/driver/interfaces';
+import type { ProbeFn } from '../../../core/contract/types';
+import type { ProbeResult } from '../../../core/driver/interfaces';
 
-import { Rule, Verdict } from '../../../../core/contract/enums';
-import { TerminationCause } from '../../../../core/driver/enums';
+import { Rule, Verdict } from '../../../core/contract/enums';
+import { TerminationCause } from '../../../core/driver/enums';
 import { clTeConflict } from './cl-te-conflict';
 
 const bytes = (s: string): Uint8Array => new TextEncoder().encode(s);

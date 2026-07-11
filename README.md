@@ -1,10 +1,10 @@
 # ashward
 
-Bun-native HTTP conformance test library — verifies your server rejects framing / request-smuggling attacks, from inside your test runner.
+Bun-native conformance test library — verifies your running server against international standards and security requirements, from inside your test runner.
 
 ## What it is
 
-ashward sends deliberately malformed HTTP requests over a raw socket to a running server and checks that the server **rejects** them, the way the standards require. The rules are built in — you don't write assertions, you point it at a URL and it judges conformance.
+ashward probes a running server with real bytes and judges the responses against the normative clauses of international standards and security rules (IETF RFCs today; WHATWG, W3C, and security domains next). The rules are built in — you don't write assertions, you point it at a URL and it judges conformance.
 
 It runs inside your existing test runner (`bun test`, and any runner that surfaces a thrown error). No CLI, no separate report, no external service.
 
@@ -35,22 +35,26 @@ The target is a URL, so the server under test can be written in any language.
 
 ## What it checks (today)
 
-HTTP/1.1 framing — the parser-discrepancy class behind request smuggling:
+**HTTP/1.1 framing** — the parser-discrepancy class behind request smuggling (RFC 9112). These run by default:
 
-| Rule id                                 | Requirement                                                            |
-| --------------------------------------- | ---------------------------------------------------------------------- |
-| `http.framing.duplicate-content-length` | RFC 9112 §6.3 — reject two divergent `Content-Length` headers          |
-| `http.framing.cl-te-conflict`           | RFC 9112 §6.1 — reject `Content-Length` + `Transfer-Encoding` together |
+| Rule id                    | Requirement                                                            |
+| -------------------------- | ---------------------------------------------------------------------- |
+| `duplicate-content-length` | RFC 9112 §6.3 — reject two divergent `Content-Length` headers          |
+| `cl-te-conflict`           | RFC 9112 §6.1 — reject `Content-Length` + `Transfer-Encoding` together |
 
-Each rule cites its normative source (RFC clause) and taxonomy (CWE-444).
+**CORS** (WHATWG Fetch) — **in progress.** The rule roster (the `Rule` enum) and the per-clause disposition table are frozen against the origin-side Fetch/RFC/PNA requirements, but the CORS rule implementations are being (re)built against that frozen identity and are **not yet run by default**. See `src/standards/disposition.ts` for the authoritative clause→rule mapping. The public `Rule` id is a stable kebab slug with no domain prefix (e.g. `access-control-allow-origin-wildcard-with-credentials`, `origin-reflection`).
+
+Each rule cites its normative source (RFC clause or Fetch anchor) and taxonomy (CWE).
 
 ## How it judges
 
-A rule sends one crafted request and classifies the wire response:
+A rule sends its crafted request(s) and classifies the wire response:
 
-- **pass** — the server refused it (4xx/5xx, or closed the connection)
-- **fail** — the server processed it as valid (2xx/3xx) — the smuggling-relevant discrepancy
-- **inconclusive** — couldn't tell (timeout, etc.), with a typed reason
+- **pass** — the server did the conformant thing (framing: refused with 4xx/5xx or a close; CORS: answered safely)
+- **fail** — the server did the unsafe/non-conformant thing
+- **warn** — non-blocking by default, but worth surfacing (e.g. an origin reflected without credentials)
+- **skip** — the clause did not apply (the header it judges was absent), with a typed reason
+- **inconclusive** — couldn't tell (timeout, malformed response), with a typed reason
 
 `report.ok(policy)` is a view over the results, not a stored flag — you decide what fails your build (`failOn`, how to treat inconclusive).
 
@@ -60,7 +64,7 @@ No CLI. No source scanning. No exploitation — detection and verdict only. It t
 
 ## Status
 
-Early. HTTP/1.1 framing rules land first; more standards (framing, semantics, security headers) follow.
+Early. HTTP/1.1 framing and WHATWG Fetch CORS land first; more standards and security domains follow.
 
 ## License
 

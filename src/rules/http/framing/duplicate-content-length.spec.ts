@@ -1,10 +1,10 @@
 import { test, expect } from 'bun:test';
 
-import type { ProbeFn } from '../../../../core/contract/types';
-import type { ProbeResult } from '../../../../core/driver/interfaces';
+import type { ProbeFn } from '../../../core/contract/types';
+import type { ProbeResult } from '../../../core/driver/interfaces';
 
-import { Rule, Verdict, InconclusiveReason } from '../../../../core/contract/enums';
-import { TerminationCause } from '../../../../core/driver/enums';
+import { Rule, Verdict, InconclusiveReason } from '../../../core/contract/enums';
+import { TerminationCause } from '../../../core/driver/enums';
 import { duplicateContentLength } from './duplicate-content-length';
 
 const bytes = (s: string): Uint8Array => new TextEncoder().encode(s);
