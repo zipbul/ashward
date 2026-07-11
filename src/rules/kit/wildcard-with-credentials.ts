@@ -5,7 +5,7 @@ import type { FetchClauseId } from '../../standards/catalog/fetch';
 import type { ProbeSpec } from './craft-probe';
 
 import { SkipReason, Verdict } from '../../core/contract/enums';
-import { singleFieldValue } from '../../http/decode/fields';
+import { fieldValues, singleFieldValue } from '../../http/decode/fields';
 import { ACCESS_CONTROL_ALLOW_CREDENTIALS } from '../../normative/header-names';
 import { CREDENTIALS_TRUE, WILDCARD } from '../../normative/literals';
 import { refsFor } from './clause-refs';
@@ -42,8 +42,10 @@ export function defineWildcardWithCredentialsRule(spec: WildcardWithCredentialsS
       if (value === null) {
         return { verdict: Verdict.Skip, reason: SkipReason.HeaderAbsent };
       }
-      const credentials = singleFieldValue(head, ACCESS_CONTROL_ALLOW_CREDENTIALS);
-      if (value === WILDCARD && credentials === CREDENTIALS_TRUE) {
+      // A repeated ACAC collapses to null under singleFieldValue, so read every line: `*` alongside
+      // any `true` ACAC (single or duplicated) is the contradiction.
+      const credentialed = fieldValues(head, ACCESS_CONTROL_ALLOW_CREDENTIALS).includes(CREDENTIALS_TRUE);
+      if (value === WILDCARD && credentialed) {
         return { verdict: Verdict.Fail };
       }
       return { verdict: Verdict.Pass };

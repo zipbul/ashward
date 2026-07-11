@@ -31,3 +31,8 @@ test('skips when only one of the pair is present', async () => {
   expect(out.verdict).toBe(Verdict.Skip);
   expect(out.reason).toBe(SkipReason.HeaderAbsent);
 });
+
+test('skips when the ID is present but blank (ephemeral grant, no format check)', async () => {
+  const out = await run('Private-Network-Access-ID:\r\nPrivate-Network-Access-Name: router.local');
+  expect(out.verdict).toBe(Verdict.Skip);
+});

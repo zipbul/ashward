@@ -25,6 +25,10 @@ test('fails a 403 preflight that still grants ACAO (a browser preflight would ne
   expect((await run('403 Forbidden', GRANT)).verdict).toBe(Verdict.Fail);
 });
 
+test('fails a non-2xx preflight that speaks CORS via ACAM even without ACAO', async () => {
+  expect((await run('403 Forbidden', 'Access-Control-Allow-Methods: DELETE')).verdict).toBe(Verdict.Fail);
+});
+
 test('skips a non-2xx preflight with no grant (server is simply not sharing)', async () => {
   const out = await run('404 Not Found', 'X-Other: y');
   expect(out.verdict).toBe(Verdict.Skip);

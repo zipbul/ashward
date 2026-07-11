@@ -14,6 +14,10 @@ test('passes when the previewed PATCH is echoed byte-exactly', async () => {
   expect((await run('Access-Control-Allow-Methods: PATCH')).verdict).toBe(Verdict.Pass);
 });
 
+test('passes when an exact PATCH is present alongside a wrong-cased duplicate', async () => {
+  expect((await run('Access-Control-Allow-Methods: patch, PATCH')).verdict).toBe(Verdict.Pass);
+});
+
 test('fails when PATCH is lowercased to patch (byte mismatch breaks the preflight)', async () => {
   expect((await run('Access-Control-Allow-Methods: patch')).verdict).toBe(Verdict.Fail);
 });

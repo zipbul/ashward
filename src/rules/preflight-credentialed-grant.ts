@@ -7,17 +7,16 @@ import { refsFor } from './kit/clause-refs';
 import { defineHttpResponseRule } from './kit/http-response-rule';
 import { PROBE_ORIGIN } from './kit/probe-fixtures';
 
-/** Does this response echo our origin AND grant credentials — a credentialed grant to us? */
-function isCredentialedGrant(acao: string | null, acac: string | null): boolean {
-  return acac === CREDENTIALS_TRUE && acao === PROBE_ORIGIN;
-}
-
 /**
  * §3.8 — a preflight's CORS check runs on the ACTUAL request's credentials mode, but a preflight
- * never carries credentials, so support must be signalled on the preflight response too. Two probes
- * (preflight, then actual GET): if the actual response is a credentialed grant to our origin
- * (ACAC:true + echoed origin) but the preflight is not, a browser's preflight fails and the actual
- * never runs → Fail. If the actual reveals no credentialed intent → Skip.
+ * never carries credentials, so credential support must also be signalled on the preflight response.
+ * Two probes (preflight, then actual GET). This is only soundly concludable when BOTH: (a) the actual
+ * is a credentialed grant to us (ACAC:true + echoed origin — the only cookie-free way to see
+ * credentialed intent), AND (b) the preflight itself already speaks CORS to us (echoes our origin) —
+ * so it is a preflight a browser would consult. Then a preflight that omits ACAC:true is the §3.8 gap
+ * (Fail). If the actual is not a credentialed grant, or the preflight does not speak CORS to us (the
+ * server does not preflight our requests), nothing can be concluded → Skip; never a false Fail on a
+ * server that simply serves credentialed simple requests without a CORS preflight.
  */
 export const preflightCredentialedGrant = defineHttpResponseRule({
   id: Rule.PreflightCredentialedGrant,
@@ -28,17 +27,17 @@ export const preflightCredentialedGrant = defineHttpResponseRule({
     if (preflight === undefined || actual === undefined) {
       return { verdict: Verdict.Skip, reason: SkipReason.HeaderAbsent };
     }
-    const actualGrants = isCredentialedGrant(
-      singleFieldValue(actual, ACCESS_CONTROL_ALLOW_ORIGIN),
-      singleFieldValue(actual, ACCESS_CONTROL_ALLOW_CREDENTIALS),
-    );
-    if (!actualGrants) {
+    const actualCredentialedToUs =
+      singleFieldValue(actual, ACCESS_CONTROL_ALLOW_CREDENTIALS) === CREDENTIALS_TRUE &&
+      singleFieldValue(actual, ACCESS_CONTROL_ALLOW_ORIGIN) === PROBE_ORIGIN;
+    if (!actualCredentialedToUs) {
       return { verdict: Verdict.Skip, reason: SkipReason.HeaderAbsent };
     }
-    const preflightGrants = isCredentialedGrant(
-      singleFieldValue(preflight, ACCESS_CONTROL_ALLOW_ORIGIN),
-      singleFieldValue(preflight, ACCESS_CONTROL_ALLOW_CREDENTIALS),
-    );
-    return preflightGrants ? { verdict: Verdict.Pass } : { verdict: Verdict.Fail };
+    if (singleFieldValue(preflight, ACCESS_CONTROL_ALLOW_ORIGIN) !== PROBE_ORIGIN) {
+      return { verdict: Verdict.Skip, reason: SkipReason.HeaderAbsent };
+    }
+    return singleFieldValue(preflight, ACCESS_CONTROL_ALLOW_CREDENTIALS) === CREDENTIALS_TRUE
+      ? { verdict: Verdict.Pass }
+      : { verdict: Verdict.Fail };
   },
 });

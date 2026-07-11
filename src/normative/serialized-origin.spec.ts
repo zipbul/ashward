@@ -4,25 +4,33 @@ import { WHATWG_FETCH } from '../standards/documents';
 import { isSerializedOrigin, SERIALIZED_ORIGIN_CITATION } from './serialized-origin';
 
 test.each([
+  // canonical serialized origins
   ['https://example.com', true],
   ['http://example.com:8080', true],
   ['http://localhost', true],
-  ['https://[::1]:443', true],
+  ['https://[::1]', true],
   ['https://[2001:db8::1]', true],
+  // not origins at all
   ['null', false],
   ['example.com', false],
   ['https://example.com/', false],
   ['https://example.com/path', false],
   ['https://user@example.com', false],
   ['https://example.com?q=1', false],
-  ['https://a, https://b', false],
-  // §1.1 — no list, no subdomain wildcard
+  ['https://a.test, https://b.test', false],
+  // §1.1 — no subdomain wildcard / list
   ['https://*.example.com', false],
-  // §1.3 — lowercase scheme/host, no percent-encoding, port 1*5DIGIT
+  // §1.2 — a default port must be elided from the serialization
+  ['https://example.com:443', false],
+  ['http://example.com:80', false],
+  ['https://[::1]:443', false],
+  // §1.3 — lowercase scheme/host, no percent-encoding, canonical IPv4, port range
   ['HTTPS://example.com', false],
   ['https://Example.com', false],
   ['https://ex%20ample.com', false],
   ['https://example.com:123456', false],
+  ['https://01.02.03.04', false],
+  ['https://999.999.999.999', false],
   // §1.3 — IPv6: no embedded IPv4, no leading zeros, no single-zero :: elision
   ['https://[::ffff:192.168.0.1]', false],
   ['https://[0db8::1]', false],
@@ -31,7 +39,7 @@ test.each([
   expect(isSerializedOrigin(value)).toBe(expected);
 });
 
-test('cites Fetch #origin-header (which supplants RFC 6454)', () => {
+test('cites Fetch #origin-header (which defers to WHATWG URL)', () => {
   expect(SERIALIZED_ORIGIN_CITATION.doc).toBe(WHATWG_FETCH);
   expect(SERIALIZED_ORIGIN_CITATION.locator.value).toBe('origin-header');
 });

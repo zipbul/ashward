@@ -12,8 +12,8 @@ const head = (fields: string): string => `HTTP/1.1 200 OK\r\n${fields}\r\n\r\n`;
 const run = async (actual: string, preflight: string) =>
   accessControlExposeHeadersPreflightOnly.run({ probe: replay(head(actual), head(preflight)), target: TARGET });
 
-test('fails when ACEH is only on the preflight, not the actual response', async () => {
-  const out = await run('X-Other: y', 'Access-Control-Expose-Headers: X-Total');
+test('fails when ACEH is only on the preflight while the actual is shared to us', async () => {
+  const out = await run('Access-Control-Allow-Origin: *', 'Access-Control-Expose-Headers: X-Total');
   expect(out.verdict).toBe(Verdict.Fail);
 });
 
@@ -21,8 +21,12 @@ test('passes when ACEH is on the actual response', async () => {
   expect((await run('Access-Control-Expose-Headers: X-Total', 'X-Other: y')).verdict).toBe(Verdict.Pass);
 });
 
-test('skips when ACEH is on neither response', async () => {
-  const out = await run('X-Other: y', 'X-Other: y');
+test('skips when ACEH is on the preflight but the actual is not a grant to us', async () => {
+  const out = await run('X-Other: y', 'Access-Control-Expose-Headers: X-Total');
   expect(out.verdict).toBe(Verdict.Skip);
   expect(out.reason).toBe(SkipReason.HeaderAbsent);
+});
+
+test('skips when ACEH is on neither response', async () => {
+  expect((await run('X-Other: y', 'X-Other: y')).verdict).toBe(Verdict.Skip);
 });

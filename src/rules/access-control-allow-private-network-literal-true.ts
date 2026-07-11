@@ -1,5 +1,5 @@
 import { Rule, SkipReason, Verdict } from '../core/contract/enums';
-import { singleFieldValue } from '../http/decode/fields';
+import { fieldValues } from '../http/decode/fields';
 import { ACCESS_CONTROL_ALLOW_PRIVATE_NETWORK } from '../normative/header-names';
 import { CREDENTIALS_TRUE } from '../normative/literals';
 import { FetchClauseId } from '../standards/catalog/fetch';
@@ -22,10 +22,14 @@ export const accessControlAllowPrivateNetworkLiteralTrue = defineHttpResponseRul
     if (head === undefined) {
       return { verdict: Verdict.Skip, reason: SkipReason.HeaderAbsent };
     }
-    const value = singleFieldValue(head, ACCESS_CONTROL_ALLOW_PRIVATE_NETWORK);
-    if (value === null) {
+    const values = fieldValues(head, ACCESS_CONTROL_ALLOW_PRIVATE_NETWORK);
+    if (values.length === 0) {
       return { verdict: Verdict.Skip, reason: SkipReason.HeaderAbsent };
     }
-    return value === CREDENTIALS_TRUE ? { verdict: Verdict.Pass } : { verdict: Verdict.Fail };
+    if (values.length > 1) {
+      return { verdict: Verdict.Fail }; // two field lines combine to `true, true`, not the literal `true`
+    }
+    const [only = ''] = values;
+    return only === CREDENTIALS_TRUE ? { verdict: Verdict.Pass } : { verdict: Verdict.Fail };
   },
 });

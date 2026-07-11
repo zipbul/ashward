@@ -6,11 +6,12 @@ import { refsFor } from './kit/clause-refs';
 import { defineHttpResponseRule } from './kit/http-response-rule';
 import { PROBE_ORIGIN } from './kit/probe-fixtures';
 
-/** The authority component of an absolute URL (`scheme://<authority>` up to the first /, ?, or #). */
-const AUTHORITY = /^[a-z][a-z0-9+.-]*:\/\/([^/?#]*)/i;
+/** The authority of an absolute (`scheme://<authority>`) OR protocol-relative (`//<authority>`) URL,
+ *  up to the first /, ?, or #. A path-relative Location (`/next`) has no `//` and so no authority. */
+const AUTHORITY = /^(?:[a-z][a-z0-9+.-]*:)?\/\/([^/?#]*)/i;
 
-/** True when an absolute Location URL carries userinfo (`user[:pass]@host`); `@` cannot legally
- *  appear in an authority except as the userinfo delimiter. A relative Location has no authority. */
+/** True when a Location URL carries userinfo (`user[:pass]@host`); `@` cannot legally appear in an
+ *  authority except as the userinfo delimiter. A path-relative Location has no authority. */
 function locationHasUserinfo(location: string): boolean {
   const match = AUTHORITY.exec(location);
   return match?.[1] !== undefined && match[1].includes('@');

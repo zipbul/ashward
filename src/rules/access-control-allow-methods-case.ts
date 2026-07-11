@@ -29,10 +29,14 @@ export const accessControlAllowMethodsCase = defineHttpResponseRule({
     if (values.length === 0) {
       return { verdict: Verdict.Skip, reason: SkipReason.HeaderAbsent };
     }
-    const listed = splitFieldList(values.join(', ')).find(method => method.toLowerCase() === PREVIEWED_METHOD.toLowerCase());
-    if (listed === undefined) {
-      return { verdict: Verdict.Skip, reason: SkipReason.HeaderAbsent };
+    const elements = splitFieldList(values.join(', '));
+    // A browser's preflight succeeds if ANY element byte-matches the request method, so an exact
+    // element passes even alongside a wrong-cased duplicate (`patch, PATCH`). Only a case-insensitive
+    // listing with NO exact element is the §3.4 break; not listed at all → the server denies it (Skip).
+    if (elements.includes(PREVIEWED_METHOD)) {
+      return { verdict: Verdict.Pass };
     }
-    return listed === PREVIEWED_METHOD ? { verdict: Verdict.Pass } : { verdict: Verdict.Fail };
+    const listedInsensitively = elements.some(method => method.toLowerCase() === PREVIEWED_METHOD.toLowerCase());
+    return listedInsensitively ? { verdict: Verdict.Fail } : { verdict: Verdict.Skip, reason: SkipReason.HeaderAbsent };
   },
 });

@@ -24,7 +24,8 @@ export const privateNetworkAccessIdNameFormat = defineHttpResponseRule({
     }
     const id = singleFieldValue(head, PRIVATE_NETWORK_ACCESS_ID);
     const name = singleFieldValue(head, PRIVATE_NETWORK_ACCESS_NAME);
-    if (id === null || name === null) {
+    // Either absent OR blank → the UA processes it as an ephemeral grant with no format check (Skip).
+    if (id === null || name === null || id.trim() === '' || name.trim() === '') {
       return { verdict: Verdict.Skip, reason: SkipReason.HeaderAbsent };
     }
     return isPnaId(id) && isPnaName(name) ? { verdict: Verdict.Pass } : { verdict: Verdict.Fail };

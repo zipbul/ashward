@@ -15,6 +15,10 @@ test('fails a 302 whose Location carries userinfo', async () => {
   expect((await run('302 Found', 'Location: https://user:pass@evil.test/next')).verdict).toBe(Verdict.Fail);
 });
 
+test('fails a scheme-relative Location that carries userinfo', async () => {
+  expect((await run('302 Found', 'Location: //user:pass@evil.test/next')).verdict).toBe(Verdict.Fail);
+});
+
 test('passes a 302 whose Location has no userinfo', async () => {
   expect((await run('302 Found', 'Location: https://safe.test/next')).verdict).toBe(Verdict.Pass);
 });

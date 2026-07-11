@@ -31,6 +31,13 @@ test('passes when the value is a concrete list even with credentials', async () 
   expect(out.verdict).toBe(Verdict.Pass);
 });
 
+test('fails on * with a repeated ACAC whose lines include true', async () => {
+  const out = await run(
+    'Access-Control-Allow-Methods: *\r\nAccess-Control-Allow-Credentials: true\r\nAccess-Control-Allow-Credentials: true',
+  );
+  expect(out.verdict).toBe(Verdict.Fail);
+});
+
 test('skips with header-absent when the header is not sent', async () => {
   const out = await run('X-Other: y');
   expect(out.verdict).toBe(Verdict.Skip);
