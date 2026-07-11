@@ -7,7 +7,7 @@ import { probe as sendProbe } from '../transport/tcp/socket-probe';
 
 /** Bind the default TCP byte-probe to an HTTP target. The one place the HTTP domain names its
  *  transport; swapping in TLS later is a different binder, not a core change. */
-export function bindHttpProbe(target: HttpTarget): ProbeFn {
+function bindHttpProbe(target: HttpTarget): ProbeFn {
   return async bytes => sendProbe({ host: target.host, port: target.port, bytes, timeoutMs: target.timeoutMs });
 }
 
