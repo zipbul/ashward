@@ -1,5 +1,5 @@
 {
-  "name": "ashward",
+  "name": "@zipbul/ashward",
   "version": "0.1.0",
   "description": "Test-support library with built-in rules that verify a running server against international standards and security requirements, from inside your test runner.",
   "keywords": [
@@ -39,6 +39,7 @@
     }
   },
   "publishConfig": {
+    "access": "public",
     "provenance": true
   },
   "scripts": {

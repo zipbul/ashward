@@ -2,7 +2,7 @@
 
 [English](./README.md) | **한국어**
 
-[![npm](https://img.shields.io/npm/v/ashward)](https://www.npmjs.com/package/ashward)
+[![npm](https://img.shields.io/npm/v/@zipbul/ashward)](https://www.npmjs.com/package/@zipbul/ashward)
 [![CI](https://github.com/zipbul/ashward/actions/workflows/ci.yml/badge.svg)](https://github.com/zipbul/ashward/actions/workflows/ci.yml)
 
 **실행 중인 서버**를 국제 표준·보안 요구사항에 대해 검증하는, 규칙이 내장된 테스트 보조 라이브러리 — 테스트 러너 안에서 동작합니다. 단정을 직접 짜지 않고, URL을 가리키면 실제 바이트로 준수 여부를 판정합니다.
@@ -14,7 +14,7 @@
 ## 📦 설치
 
 ```bash
-bun add -d ashward
+bun add -d @zipbul/ashward
 ```
 
 <br>
@@ -25,7 +25,7 @@ bun add -d ashward
 
 ```typescript
 import { test } from 'bun:test';
-import { ashward, assertOk } from 'ashward';
+import { ashward, assertOk } from '@zipbul/ashward';
 
 test('내 서버가 내장 표준 + 보안 규칙을 준수한다', async () => {
   const report = await ashward('http://localhost:3000/api'); // 모든 규칙 실행
@@ -53,7 +53,7 @@ for (const clause of report.results) {
 패키지는 규칙을 제공할 뿐, "어떤 규칙을 반드시 지켜야 한다"고 정하지 않습니다. `ashward(url)`은 기본으로 모든 규칙을 돌리며, 원하는 선택을 넘겨 범위를 좁힙니다.
 
 ```typescript
-import { ashward, rules, ALL_RULES, Rule } from 'ashward';
+import { ashward, rules, ALL_RULES, Rule } from '@zipbul/ashward';
 
 // 특정 규칙만 골라서
 await ashward(url, [rules.accessControlAllowOriginGrammar, rules.originReflection]);

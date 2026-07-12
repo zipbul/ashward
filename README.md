@@ -2,7 +2,7 @@
 
 **English** | [한국어](./README.ko.md)
 
-[![npm](https://img.shields.io/npm/v/ashward)](https://www.npmjs.com/package/ashward)
+[![npm](https://img.shields.io/npm/v/@zipbul/ashward)](https://www.npmjs.com/package/@zipbul/ashward)
 [![CI](https://github.com/zipbul/ashward/actions/workflows/ci.yml/badge.svg)](https://github.com/zipbul/ashward/actions/workflows/ci.yml)
 
 Test-support library with built-in rules that verify a **running server** against international standards and security requirements — from inside your test runner. You don't write assertions; you point it at a URL and it judges conformance over real bytes.
@@ -14,7 +14,7 @@ Test-support library with built-in rules that verify a **running server** agains
 ## 📦 Installation
 
 ```bash
-bun add -d ashward
+bun add -d @zipbul/ashward
 ```
 
 <br>
@@ -25,7 +25,7 @@ Point it at your running server inside any test runner. `assertOk` throws — wi
 
 ```typescript
 import { test } from 'bun:test';
-import { ashward, assertOk } from 'ashward';
+import { ashward, assertOk } from '@zipbul/ashward';
 
 test('my server conforms to the built-in standards + security rules', async () => {
   const report = await ashward('http://localhost:3000/api'); // runs every shipped rule
@@ -53,7 +53,7 @@ The target is a URL, so the server under test can be written in any language.
 The package ships rules, never an opinion about which ones your app must satisfy. `ashward(url)` runs every rule by default; pass your own selection to scope it.
 
 ```typescript
-import { ashward, rules, ALL_RULES, Rule } from 'ashward';
+import { ashward, rules, ALL_RULES, Rule } from '@zipbul/ashward';
 
 // hand-pick specific rules
 await ashward(url, [rules.accessControlAllowOriginGrammar, rules.originReflection]);
