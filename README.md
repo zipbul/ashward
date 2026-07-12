@@ -1,71 +1,118 @@
 # ashward
 
-Bun-native conformance test library — verifies your running server against international standards and security requirements, from inside your test runner.
+**English** | [한국어](./README.ko.md)
 
-## What it is
+[![npm](https://img.shields.io/npm/v/ashward)](https://www.npmjs.com/package/ashward)
+[![CI](https://github.com/zipbul/ashward/actions/workflows/ci.yml/badge.svg)](https://github.com/zipbul/ashward/actions/workflows/ci.yml)
 
-ashward probes a running server with real bytes and judges the responses against the normative clauses of international standards and security rules (IETF RFCs today; WHATWG, W3C, and security domains next). The rules are built in — you don't write assertions, you point it at a URL and it judges conformance.
+Test-support library with built-in rules that verify a **running server** against international standards and security requirements — from inside your test runner. You don't write assertions; you point it at a URL and it judges conformance over real bytes.
 
-It runs inside your existing test runner (`bun test`, and any runner that surfaces a thrown error). No CLI, no separate report, no external service.
+> The rule is the atomic unit. ashward ships the rules and runs them against a live origin — **which** rules to run is your choice. It probes over one hop and never sends a `Cookie`; credential rules are judged from response self-contradiction, the way a browser's CORS check reasons.
 
-## Usage
+<br>
 
-```ts
+## 📦 Installation
+
+```bash
+bun add -d ashward
+```
+
+<br>
+
+## 🚀 Quick Start
+
+Point it at your running server inside any test runner. `assertOk` throws — with per-clause detail — on any blocking result, so a thrown error is the one universal failure signal.
+
+```typescript
 import { test } from 'bun:test';
-import { ashward, assertConformance } from 'ashward';
+import { ashward, assertOk } from 'ashward';
 
-test('my server resists request smuggling', async () => {
-  const report = await ashward('http://localhost:3000');
-  assertConformance(report); // throws with per-clause detail on any failure
+test('my server conforms to the built-in standards + security rules', async () => {
+  const report = await ashward('http://localhost:3000/api'); // runs every shipped rule
+  assertOk(report);
 });
 ```
 
 Prefer to inspect instead of throw:
 
-```ts
-const report = await ashward('http://localhost:3000');
-if (!report.ok()) {
-  for (const clause of report.results) {
-    console.log(clause.ruleId, clause.verdict);
-  }
+```typescript
+const report = await ashward('http://localhost:3000/api');
+
+report.ok(); // boolean under the default policy
+for (const clause of report.results) {
+  console.log(clause.ruleId, clause.verdict, clause.reason);
 }
 ```
 
 The target is a URL, so the server under test can be written in any language.
 
-## What it checks (today)
+<br>
 
-**HTTP/1.1 framing** — the parser-discrepancy class behind request smuggling (RFC 9112). These run by default:
+## 🎯 Selecting rules
 
-| Rule id                    | Requirement                                                            |
-| -------------------------- | ---------------------------------------------------------------------- |
-| `duplicate-content-length` | RFC 9112 §6.3 — reject two divergent `Content-Length` headers          |
-| `cl-te-conflict`           | RFC 9112 §6.1 — reject `Content-Length` + `Transfer-Encoding` together |
+The package ships rules, never an opinion about which ones your app must satisfy. `ashward(url)` runs every rule by default; pass your own selection to scope it.
 
-**CORS** (WHATWG Fetch) — **in progress.** The rule roster (the `Rule` enum) and the per-clause disposition table are frozen against the origin-side Fetch/RFC/PNA requirements, but the CORS rule implementations are being (re)built against that frozen identity and are **not yet run by default**. See `src/standards/disposition.ts` for the authoritative clause→rule mapping. The public `Rule` id is a stable kebab slug with no domain prefix (e.g. `access-control-allow-origin-wildcard-with-credentials`, `origin-reflection`).
+```typescript
+import { ashward, rules, ALL_RULES, Rule } from 'ashward';
 
-Each rule cites its normative source (RFC clause or Fetch anchor) and taxonomy (CWE).
+// hand-pick specific rules
+await ashward(url, [rules.accessControlAllowOriginGrammar, rules.originReflection]);
 
-## How it judges
+// or filter the full registry
+await ashward(
+  url,
+  ALL_RULES.filter(r => r.id !== Rule.PrivateNetworkAccessIdNameFormat),
+);
+```
 
-A rule sends its crafted request(s) and classifies the wire response:
+<br>
 
-- **pass** — the server did the conformant thing (framing: refused with 4xx/5xx or a close; CORS: answered safely)
-- **fail** — the server did the unsafe/non-conformant thing
-- **warn** — non-blocking by default, but worth surfacing (e.g. an origin reflected without credentials)
+## 🔬 What it checks
+
+Every rule has a stable, domain-free kebab id (e.g. `access-control-allow-origin-wildcard-with-credentials`), cites its normative source, and — for security rules — carries a CWE.
+
+**HTTP/1.1 framing** (RFC 9112) — the parser-discrepancy class behind request smuggling:
+
+| Rule id                    | Requirement                                                                        |
+| -------------------------- | ---------------------------------------------------------------------------------- |
+| `duplicate-content-length` | §6.3 — reject two divergent `Content-Length` headers (MUST → **fail**)             |
+| `cl-te-conflict`           | §6.1 — `Content-Length` + `Transfer-Encoding` ought to be an error (SHOULD → warn) |
+
+**WHATWG Fetch CORS** — origin-server response conformance across the Fetch/URL/RFC/PNA clauses:
+
+- **Grammar & single-generation** (§1–§2) — `Access-Control-Allow-Origin` serialized-origin grammar, `Allow-Credentials` byte-exact `true`, token-list headers, `Max-Age` delta-seconds, single generation, `*`-with-credentials contradictions.
+- **Preflight** (§3) — ok status, method byte-case, `*`-with-credentials, credentialed-grant consistency.
+- **Actual & redirect** (§4–§5) — `Expose-Headers` placement, `Location` without userinfo.
+- **Private Network Access** (§6, WICG draft) — `Allow-Private-Network` literal `true`, ID/Name format.
+- **Caching** (§7) — `Vary: Origin` when the answer varies by origin, and not when it's static.
+- **Security heuristics** — credentialed origin reflection and `null`-origin grants (CWE-346 / CWE-942).
+
+The full roster is exported as `ALL_RULES` (and each rule by name under `rules`).
+
+<br>
+
+## 🧭 How it judges
+
+A rule sends its crafted probe(s) and classifies the wire response:
+
+- **pass** — the server did the conformant thing
+- **fail** — a MUST / MUST NOT violation (blocks by default)
+- **warn** — a SHOULD-level or security concern (non-blocking by default)
 - **skip** — the clause did not apply (the header it judges was absent), with a typed reason
 - **inconclusive** — couldn't tell (timeout, malformed response), with a typed reason
 
-`report.ok(policy)` is a view over the results, not a stored flag — you decide what fails your build (`failOn`, how to treat inconclusive). It is **fail-closed on connectivity**: if ashward could not reach the server (dead host, wrong URL, refused, timeout) the report is never green, regardless of policy. A _reached-but-undecidable_ inconclusive (a live server that answered oddly) is non-blocking by default; set `inconclusive: 'fail'` to block those too.
+`report.ok(policy)` is a view over the results, not a stored flag — you decide what blocks (`failOn`, how to treat `inconclusive`). It is **fail-closed on connectivity**: if ashward could not reach the server (dead host, wrong URL, refused, timeout) the report is never ok, whatever the policy. A _reached-but-undecidable_ inconclusive is non-blocking by default; set `inconclusive: 'fail'` to block those too.
 
-## What it does not do
+<br>
 
-No CLI. No source scanning. No exploitation — detection and verdict only. It tests a single origin over one hop; two-hop proxy⇄backend desync detection is out of scope.
+## 🚧 Scope
 
-## Status
+- **HTTP over plaintext only** — an `https:` target throws (no TLS yet); point it at your server over `http`.
+- **One hop, detection only** — no CLI, no source scanning, no exploitation. Two-hop proxy⇄backend desync is out of scope.
+- **Not every clause is blackbox-testable** — clauses that need server intent (e.g. "the server means to share this response") are intent-bound and honestly catalogued as untestable rather than guessed.
 
-Early. HTTP/1.1 framing and WHATWG Fetch CORS land first; more standards and security domains follow.
+<br>
 
-## License
+## 📄 License
 
 MIT
