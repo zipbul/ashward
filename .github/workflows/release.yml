@@ -1,9 +1,12 @@
 name: Release
 
-# Manual only. Requires the NPM_TOKEN secret. Consumes accumulated changesets to
-# version + publish ashward to npm (public, with provenance).
+# Runs on every push to main (the changesets base branch). With pending changesets the
+# changesets action opens/updates a "Version Packages" PR; merging that PR bumps the
+# version and the next run publishes ashward to npm (public, with provenance).
+# Requires the NPM_TOKEN secret.
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
