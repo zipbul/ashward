@@ -1,6 +1,6 @@
 import type { FramingObservation } from './interfaces';
 
-import { TerminationCause } from '../core/driver/enums';
+import { TerminationCause } from '../transport/tcp/enums';
 import { FramingOutcome } from './enums';
 
 /**
@@ -22,9 +22,9 @@ export function classifyFramingOutcome(observation: FramingObservation): Framing
     return FramingOutcome.Inconclusive; // 1xx interim, or an unclassifiable out-of-range status
   }
 
-  // No parseable response: a timeout tells us nothing; a clean/aborted close without a
-  // valid response is a refusal.
-  if (termination === TerminationCause.Timeout) {
+  // No parseable response: a timeout or an unreachable peer tells us nothing about the origin's
+  // framing; a clean/aborted close without a valid response is a genuine refusal of the frame.
+  if (termination === TerminationCause.Timeout || termination === TerminationCause.Unreachable) {
     return FramingOutcome.Inconclusive;
   }
   return FramingOutcome.Rejected;

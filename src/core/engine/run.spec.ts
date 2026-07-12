@@ -1,15 +1,17 @@
 import { test, expect } from 'bun:test';
 
-import type { RuleContext, RuleDef } from '../contract/interfaces';
-import type { ProbeFn } from '../contract/types';
+import type { RuleDef } from '../contract/interfaces';
 
 import { Rule, Verdict } from '../contract/enums';
-import { TerminationCause } from '../driver/enums';
-import { runRulesWithProbe } from './run';
+import { runRules } from './run';
 
-const stubProbe: ProbeFn = async () => Promise.resolve({ response: new Uint8Array(), termination: TerminationCause.Fin });
+interface TestContext {
+  readonly tag: string;
+}
 
-const fakeRule = (verdict: Verdict): RuleDef => ({
+const CONTEXT: TestContext = { tag: 'x' };
+
+const fakeRule = (verdict: Verdict): RuleDef<TestContext> => ({
   id: Rule.DuplicateContentLength,
   normative: [],
   async run(): Promise<{ ruleId: Rule; verdict: Verdict }> {
@@ -18,31 +20,31 @@ const fakeRule = (verdict: Verdict): RuleDef => ({
 });
 
 test('collects a result from every rule into the report', async () => {
-  const report = await runRulesWithProbe(stubProbe, [fakeRule(Verdict.Pass), fakeRule(Verdict.Pass)]);
+  const report = await runRules(CONTEXT, [fakeRule(Verdict.Pass), fakeRule(Verdict.Pass)]);
   expect(report.results.length).toBe(2);
 });
 
 test('report ok() is false when any rule fails', async () => {
-  const report = await runRulesWithProbe(stubProbe, [fakeRule(Verdict.Pass), fakeRule(Verdict.Fail)]);
+  const report = await runRules(CONTEXT, [fakeRule(Verdict.Pass), fakeRule(Verdict.Fail)]);
   expect(report.ok()).toBe(false);
 });
 
 test('produces an empty, ok report when there are no rules', async () => {
-  const report = await runRulesWithProbe(stubProbe, []);
+  const report = await runRules(CONTEXT, []);
   expect(report.results.length).toBe(0);
   expect(report.ok()).toBe(true);
 });
 
-test('hands the provided probe to each rule', async () => {
-  let received: ProbeFn | undefined;
-  const capturingRule: RuleDef = {
+test('hands the same context to every rule', async () => {
+  let received: TestContext | undefined;
+  const capturingRule: RuleDef<TestContext> = {
     id: Rule.DuplicateContentLength,
     normative: [],
-    async run(context: RuleContext) {
-      received = context.probe;
+    async run(context: TestContext) {
+      received = context;
       return Promise.resolve({ ruleId: Rule.DuplicateContentLength, verdict: Verdict.Pass });
     },
   };
-  await runRulesWithProbe(stubProbe, [capturingRule]);
-  expect(received).toBe(stubProbe);
+  await runRules(CONTEXT, [capturingRule]);
+  expect(received).toBe(CONTEXT);
 });

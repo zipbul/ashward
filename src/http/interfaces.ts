@@ -1,4 +1,4 @@
-import type { TerminationCause } from '../core/driver/enums';
+import type { TerminationCause } from '../transport/tcp/enums';
 import type { StatusLine } from './decode/interfaces';
 
 export interface FramingObservation {

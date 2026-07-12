@@ -2,7 +2,7 @@ import { test, expect } from 'bun:test';
 
 import type { StatusLine } from './decode/interfaces';
 
-import { TerminationCause } from '../core/driver/enums';
+import { TerminationCause } from '../transport/tcp/enums';
 import { FramingOutcome } from './enums';
 import { classifyFramingOutcome } from './reject';
 
@@ -50,6 +50,12 @@ test('classifies an aborted connection with no response as rejected', () => {
 
 test('classifies a timeout with no response as inconclusive', () => {
   expect(classifyFramingOutcome({ statusLine: null, termination: TerminationCause.Timeout })).toBe(FramingOutcome.Inconclusive);
+});
+
+test('classifies a refused connection with no response as inconclusive (an unreachable peer tells us nothing)', () => {
+  expect(classifyFramingOutcome({ statusLine: null, termination: TerminationCause.Unreachable })).toBe(
+    FramingOutcome.Inconclusive,
+  );
 });
 
 test('lets an observed 2xx win over a later timeout', () => {

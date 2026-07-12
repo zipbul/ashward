@@ -2,6 +2,7 @@ export enum StandardsBody {
   IETF = 'IETF',
   WHATWG = 'WHATWG',
   W3C = 'W3C',
+  WICG = 'WICG',
   MITRE = 'MITRE',
   OWASP = 'OWASP',
 }
@@ -20,4 +21,10 @@ export enum LocatorKind {
   Section = 'section',
   Anchor = 'anchor',
   Clause = 'clause',
+}
+
+/** Whether a living document is a ratified standard or a non-standard draft (e.g. WICG PNA). */
+export enum DocumentStatus {
+  Living = 'living',
+  Draft = 'draft',
 }

@@ -18,5 +18,5 @@ test('carries the blocking results', () => {
 });
 
 test('summarizes the failures in its message', () => {
-  expect(new AshwardError([fail]).message).toContain('http.framing.duplicate-content-length');
+  expect(new AshwardError([fail]).message).toContain('duplicate-content-length');
 });

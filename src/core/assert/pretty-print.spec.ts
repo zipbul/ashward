@@ -14,7 +14,7 @@ const inconclusive: ClauseResult = {
 
 test('names the failing rule and its verdict', () => {
   const message = formatFailures([fail]);
-  expect(message).toContain('http.framing.duplicate-content-length');
+  expect(message).toContain('duplicate-content-length');
   expect(message).toContain('fail');
 });
 

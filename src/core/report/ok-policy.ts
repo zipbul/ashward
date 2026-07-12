@@ -1,8 +1,18 @@
 import type { ClauseResult } from '../contract/interfaces';
+import type { ClauseReason } from '../contract/types';
 import type { ReportPolicy } from './interfaces';
 
-import { Verdict } from '../contract/enums';
+import { InconclusiveReason, Verdict } from '../contract/enums';
 import { InconclusiveHandling } from './enums';
+
+/** Reasons that mean the gate could not reach/complete the exchange — the server was not tested.
+ *  These always block (a conformance gate that ran nothing must not go green), regardless of the
+ *  inconclusive policy knob, which governs only the reached-but-undecidable case below. */
+const CONNECTIVITY_REASONS = new Set<ClauseReason>([
+  InconclusiveReason.Timeout,
+  InconclusiveReason.ConnectionRefused,
+  InconclusiveReason.DriverError,
+]);
 
 /** Blocking severity: Fail outranks Warn; everything else is non-blocking (rank 0). */
 function severityRank(verdict: Verdict): number {
@@ -17,6 +27,11 @@ function severityRank(verdict: Verdict): number {
 
 function blocks(result: ClauseResult, policy: ReportPolicy): boolean {
   if (result.verdict === Verdict.Inconclusive) {
+    // "Couldn't reach the server" (or an unreasoned inconclusive) always blocks; "reached the
+    // server but the response was undecidable" is governed by the policy (ignored by default).
+    if (result.reason === undefined || CONNECTIVITY_REASONS.has(result.reason)) {
+      return true;
+    }
     return policy.inconclusive === InconclusiveHandling.Fail;
   }
   const rank = severityRank(result.verdict);

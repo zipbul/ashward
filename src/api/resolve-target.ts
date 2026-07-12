@@ -1,21 +1,26 @@
-import type { Target } from '../core/engine/interfaces';
+import type { HttpTarget } from '../http/context';
 
-import { DEFAULT_TIMEOUT_MS, HTTP_PORT, HTTPS_PORT } from './constants';
-
-const SUPPORTED_PROTOCOLS = new Set(['http:', 'https:']);
+import { DEFAULT_TIMEOUT_MS, HTTP_PORT } from './constants';
 
 /**
- * Resolve a URL string into a connect Target. Pure and total except for the two documented
- * throws: an unparseable URL (from URL itself) and an unsupported scheme.
+ * Resolve a URL string into a connect Target. Pure and total except for the documented throws:
+ * an unparseable URL (from URL itself), a non-http scheme, and — deliberately — https. The driver
+ * is a plain TCP socket with no TLS, so an https URL would send cleartext into a TLS listener and
+ * read handshake bytes back; under the fail-closed default that surfaces as a false-red on every
+ * probe. Rejecting it up front as a setup error is the honest behaviour until TLS lands.
  */
-export function resolveTarget(url: string): Target {
+export function resolveTarget(url: string): HttpTarget {
   const parsed = new URL(url); // throws TypeError on an unparseable URL
 
-  if (!SUPPORTED_PROTOCOLS.has(parsed.protocol)) {
-    throw new Error(`ashward: unsupported protocol "${parsed.protocol}" (expected http or https)`);
+  if (parsed.protocol === 'https:') {
+    throw new Error('ashward: https targets are not supported yet (the driver has no TLS); use http');
+  }
+  if (parsed.protocol !== 'http:') {
+    throw new Error(`ashward: unsupported protocol "${parsed.protocol}" (expected http)`);
   }
 
-  const port = parsed.port ? Number(parsed.port) : parsed.protocol === 'https:' ? HTTPS_PORT : HTTP_PORT;
+  const port = parsed.port ? Number(parsed.port) : HTTP_PORT;
+  const path = `${parsed.pathname}${parsed.search}` || '/';
 
-  return { host: parsed.hostname, port, timeoutMs: DEFAULT_TIMEOUT_MS };
+  return { host: parsed.hostname, port, path, timeoutMs: DEFAULT_TIMEOUT_MS };
 }

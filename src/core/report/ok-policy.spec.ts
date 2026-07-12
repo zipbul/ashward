@@ -1,13 +1,20 @@
 import { test, expect } from 'bun:test';
 
 import type { ClauseResult } from '../contract/interfaces';
+import type { ClauseReason } from '../contract/types';
 import type { ReportPolicy } from './interfaces';
 
-import { Verdict, Rule } from '../contract/enums';
+import { InconclusiveReason, Verdict, Rule } from '../contract/enums';
 import { InconclusiveHandling } from './enums';
 import { resolveOk, selectBlocking } from './ok-policy';
 
-const clause = (verdict: Verdict): ClauseResult => ({ ruleId: Rule.DuplicateContentLength, verdict });
+const clause = (verdict: Verdict, reason?: ClauseReason): ClauseResult => ({
+  ruleId: Rule.DuplicateContentLength,
+  verdict,
+  ...(reason !== undefined ? { reason } : {}),
+});
+const undecidable = clause(Verdict.Inconclusive, InconclusiveReason.AmbiguousFraming);
+const unreachable = clause(Verdict.Inconclusive, InconclusiveReason.ConnectionRefused);
 
 const policy = (over: Partial<ReportPolicy> = {}): ReportPolicy => ({
   failOn: Verdict.Fail,
@@ -39,12 +46,16 @@ test('is not ok for a fail when failOn is Warn (fail is above the threshold)', (
   expect(resolveOk([clause(Verdict.Fail)], policy({ failOn: Verdict.Warn }))).toBe(false);
 });
 
-test('ignores inconclusive by default', () => {
-  expect(resolveOk([clause(Verdict.Inconclusive)], policy())).toBe(true);
+test('ignores an undecidable inconclusive (reached but odd response) by default', () => {
+  expect(resolveOk([undecidable], policy())).toBe(true);
 });
 
-test('is not ok for inconclusive when handling is Fail', () => {
-  expect(resolveOk([clause(Verdict.Inconclusive)], policy({ inconclusive: InconclusiveHandling.Fail }))).toBe(false);
+test('is not ok for an undecidable inconclusive when handling is Fail', () => {
+  expect(resolveOk([undecidable], policy({ inconclusive: InconclusiveHandling.Fail }))).toBe(false);
+});
+
+test('is not ok for a connectivity inconclusive even when handling is Ignore (the gate never ran)', () => {
+  expect(resolveOk([unreachable], policy({ inconclusive: InconclusiveHandling.Ignore }))).toBe(false);
 });
 
 test('is ok for skip results', () => {
@@ -61,8 +72,8 @@ test('selectBlocking returns an empty list when nothing blocks', () => {
   expect(selectBlocking([clause(Verdict.Pass), clause(Verdict.Skip)], policy())).toEqual([]);
 });
 
-test('selectBlocking includes inconclusive results when handling is Fail', () => {
-  const results = [clause(Verdict.Inconclusive), clause(Verdict.Pass)];
+test('selectBlocking includes an undecidable inconclusive when handling is Fail', () => {
+  const results = [undecidable, clause(Verdict.Pass)];
   const blocking = selectBlocking(results, policy({ inconclusive: InconclusiveHandling.Fail }));
-  expect(blocking).toEqual([clause(Verdict.Inconclusive)]);
+  expect(blocking).toEqual([undecidable]);
 });

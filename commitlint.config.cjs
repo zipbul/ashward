@@ -22,6 +22,7 @@ module.exports = {
         'driver',
         'engine',
         'http',
+        'normative',
         'report',
         'rules',
         'standards',

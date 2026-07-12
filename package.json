@@ -1,10 +1,12 @@
 {
-  "name": "ashward",
-  "version": "0.0.1",
-  "description": "Test-support library that verifies a server's HTTP parser conforms to international standards (framing / request-smuggling resistance) from inside your test runner.",
+  "name": "@zipbul/ashward",
+  "version": "0.1.0",
+  "description": "Test-support library with built-in rules that verify a running server against international standards and security requirements, from inside your test runner.",
   "keywords": [
     "bun",
     "conformance",
+    "cors",
+    "fetch",
     "framing",
     "http",
     "request-smuggling",
@@ -37,6 +39,7 @@
     }
   },
   "publishConfig": {
+    "access": "public",
     "provenance": true
   },
   "scripts": {
