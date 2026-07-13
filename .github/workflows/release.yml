@@ -29,10 +29,11 @@ jobs:
         with:
           bun-version: '1.3.14'
 
+      # No registry-url: that writes an .npmrc with an (empty, under OIDC) auth token that breaks
+      # `npm info` reads; OIDC trusted publishing resolves auth on publish without it.
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
 
       # OIDC trusted publishing needs npm >= 11.5.1
       - run: npm install -g npm@latest
