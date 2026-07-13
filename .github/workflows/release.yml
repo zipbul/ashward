@@ -35,8 +35,12 @@ jobs:
         with:
           node-version: '24'
 
-      # OIDC trusted publishing needs npm >= 11.5.1
-      - run: npm install -g npm@latest
+      # Pin a known-good npm (>= 11.5.1 for OIDC). npm@latest (11.10+) makes changesets'
+      # `npm info` publish-state read report an already-published version as unpublished.
+      - run: npm install -g npm@11.6.1
+
+      - name: (debug) publish-state read as CI sees it
+        run: npm info @zipbul/ashward --json || echo "npm info failed"
 
       - run: bun install --frozen-lockfile
 
