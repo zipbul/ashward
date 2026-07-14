@@ -23,6 +23,7 @@ const KEBAB = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const allMappings = (): RuleMapping[] => ALL_DISPOSITIONS.flatMap(d => d.rules);
 const isMustLevel = (id: string): boolean => LEVEL.get(id) === ReqLevel.Must || LEVEL.get(id) === ReqLevel.MustNot;
 const isShouldLevel = (id: string): boolean => LEVEL.get(id) === ReqLevel.Should || LEVEL.get(id) === ReqLevel.ShouldNot;
+const isUnmarkedLevel = (id: string): boolean => LEVEL.get(id) === ReqLevel.Unmarked;
 const isUnaccounted = (d: Disposition): boolean =>
   d.rules.length === 0 && (d.untestable === undefined || d.untestable.length === 0);
 const hasInvalidBasisOrSeverity = (m: RuleMapping): boolean => !VALID_BASES.has(m.basis) || !VALID_SEVERITIES.has(m.severity);
@@ -88,6 +89,10 @@ test('MUST / MUST NOT clauses map only to Fail unless a severityNote justifies t
 
 test('SHOULD / SHOULD NOT clauses never map to Fail (severity discipline)', () => {
   expect(mappingsWhere(isShouldLevel).filter(m => m.severity === Severity.Fail)).toEqual([]);
+});
+
+test('Unmarked clauses map only to Warn (never Fail or Info)', () => {
+  expect(mappingsWhere(isUnmarkedLevel).filter(m => m.severity !== Severity.Warn)).toEqual([]);
 });
 
 test('every heuristic guards at least one CWE and names a real related clause', () => {
