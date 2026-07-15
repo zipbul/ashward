@@ -6,7 +6,7 @@ import { InconclusiveReason, Rule, SkipReason, Verdict } from '../../core/contra
 import { parseResponseHead } from '../../http/decode/head-parse';
 import { craftRequest } from '../../http/encode/request';
 import { TerminationCause } from '../../transport/tcp/enums';
-import { authorityFor } from './craft-probe';
+import { appendRawQuery, authorityFor } from './craft-probe';
 
 interface QueryStatusHeuristicSpec {
   readonly id: Rule;
@@ -45,8 +45,13 @@ export function defineQueryStatusHeuristic(spec: QueryStatusHeuristicSpec): Rule
       let controlRequest: Uint8Array;
       let hostileRequest: Uint8Array;
       try {
-        controlRequest = craftRequest({ method: 'GET', target: `${context.target.path}?a=1`, host, headers: [] });
-        hostileRequest = craftRequest({ method: 'GET', target: `${context.target.path}?${spec.rawQuery}`, host, headers: [] });
+        controlRequest = craftRequest({ method: 'GET', target: appendRawQuery(context.target.path, 'a=1'), host, headers: [] });
+        hostileRequest = craftRequest({
+          method: 'GET',
+          target: appendRawQuery(context.target.path, spec.rawQuery),
+          host,
+          headers: [],
+        });
       } catch {
         return { ruleId: spec.id, verdict: Verdict.Inconclusive, reason: InconclusiveReason.DriverError };
       }

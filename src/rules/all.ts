@@ -35,6 +35,7 @@ import { privateNetworkAccessIdNameFormat } from './private-network-access-id-na
 import { prototypePollutionNoCrash } from './prototype-pollution-no-crash';
 import { uriGenericPlusIsLiteral } from './uri-generic-plus-is-literal';
 import { urlencodedAmpersandOnlySeparator } from './urlencoded-ampersand-only-separator';
+import { urlencodedEmptyNamePreserved } from './urlencoded-empty-name-preserved';
 import { urlencodedEmptySequenceSkipped } from './urlencoded-empty-sequence-skipped';
 import { urlencodedFirstEqualsSplits } from './urlencoded-first-equals-splits';
 import { urlencodedMalformedPercentPreserved } from './urlencoded-malformed-percent-preserved';
@@ -94,6 +95,7 @@ export const ALL_RULES: readonly RuleDef<HttpRuleContext>[] = [
   prototypePollutionNoCrash,
   urlencodedAmpersandOnlySeparator,
   urlencodedFirstEqualsSplits,
+  urlencodedEmptyNamePreserved,
   urlencodedPlusIsSpace,
   uriGenericPlusIsLiteral,
   urlencodedUtf8Replacement,
@@ -137,6 +139,7 @@ export {
   prototypePollutionNoCrash,
   uriGenericPlusIsLiteral,
   urlencodedAmpersandOnlySeparator,
+  urlencodedEmptyNamePreserved,
   urlencodedEmptySequenceSkipped,
   urlencodedFirstEqualsSplits,
   urlencodedMalformedPercentPreserved,

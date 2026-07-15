@@ -51,6 +51,19 @@ export const WHATWG_URL: LivingDocument = {
   status: DocumentStatus.Living,
 };
 
+/** WHATWG Encoding — defines "UTF-8 decode" (with the U+FFFD replacement-on-error behaviour) and
+ *  "UTF-8 decode without BOM", the algorithms the WHATWG URL query parser (§5.1) itself defers to
+ *  for turning a percent-decoded byte sequence back into a string. Cited alongside WHATWG URL, not
+ *  instead of it — URL owns the pair-splitting/percent-decoding steps; Encoding owns the final
+ *  byte-sequence-to-string decode step. */
+export const WHATWG_ENCODING: LivingDocument = {
+  body: StandardsBody.WHATWG,
+  code: 'WHATWG Encoding',
+  title: 'Encoding Living Standard',
+  url: 'https://encoding.spec.whatwg.org/',
+  status: DocumentStatus.Living,
+};
+
 /** WICG Private Network Access — a non-standard draft CG report (snapshot 2024-09-26). Its
  *  draft status is carried here, on the document, not as a per-rule flag. */
 export const WICG_PNA: LivingDocument = {

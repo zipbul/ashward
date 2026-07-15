@@ -4,7 +4,7 @@ import { Rule } from '../../core/contract/enums';
 import { Severity } from '../disposition-enums';
 import { RFC3986 } from '../documents';
 import { ReqLevel } from '../enums';
-import { clause, conditional, rfc, urlSection } from './build';
+import { clause, conditional, encodingAnchor, rfc, urlSection } from './build';
 
 /**
  * A neutral, editorial identity for one query-parser requirement — the join key between this
@@ -21,14 +21,14 @@ enum UrlencodedClauseId {
   PercentEncodingGrammar = 'percent-encoding-grammar', // §1.3 Unmarked
   PercentEncodingNormalizationOptional = 'percent-encoding-normalization-optional', // §1.4 Unmarked
   ProducerShouldPercentEncodeReserved = 'producer-should-percent-encode-reserved', // §1.5 Should
-  NulByteHandling = 'nul-byte-handling', // §1.6 Must — heuristic-only (Q3 relatesTo)
+  NulByteHandling = 'nul-byte-handling', // §1.6 Unmarked — heuristic-only (Q3 relatesTo)
   QueryComponentOptionality = 'query-component-optionality', // §1.7 Unmarked
 
   // §2 — application/x-www-form-urlencoded parsing (WHATWG URL)
   AmpersandOnlySeparator = 'ampersand-only-separator', // §2.1 Must — Q5
   EmptySequenceSkipped = 'empty-sequence-skipped', // §2.2 Must — Q11
   FirstEqualsSplits = 'first-equals-splits', // §2.3 Must — Q6
-  EmptyNameEchoLossy = 'empty-name-echo-lossy', // §2.3 Unmarked (echo-lossy sub-limb)
+  EmptyNamePreserved = 'empty-name-preserved', // §2.3 Must (empty-name sub-limb) — Q12
   FormPlusIsSpace = 'form-plus-is-space', // §2.4 Must (form) — Q7
   UriGenericPlusIsLiteral = 'uri-generic-plus-is-literal', // §2.4 Unmarked (uri-generic) — Q8
   Utf8ReplacementOnDecode = 'utf8-replacement-on-decode', // §2.5 Must — Q9 (Q2 relatesTo)
@@ -71,9 +71,13 @@ const CLAUSES: readonly Clause[] = [
   ),
   clause(
     UrlencodedClauseId.NulByteHandling, // §1.6
-    ReqLevel.Must,
+    ReqLevel.Unmarked,
     [rfc(RFC3986, '2.1')],
-    'a NUL byte (raw or percent-encoded) in the query is either rejected or parsed without corrupting server state',
+    // §2.1 is percent-encoding GRAMMAR only ("%" HEXDIG HEXDIG); it permits any octet — including
+    // NUL (0x00) as "%00" — to be represented, but imposes no requirement on how a server then
+    // processes a decoded NUL octet. There is no RFC 3986 MUST about NUL handling to cite; the
+    // no-hard-fail behaviour is only a CWE-20 robustness heuristic (Q3), never a spec violation.
+    'RFC 3986 §2.1 percent-encoding grammar permits any octet, including NUL (0x00), to be represented as "%00"; the RFC itself states no requirement on how a server processes a decoded NUL octet',
   ),
   clause(
     UrlencodedClauseId.QueryComponentOptionality, // §1.7
@@ -101,10 +105,10 @@ const CLAUSES: readonly Clause[] = [
     'a non-empty sequence splits into name/value on the FIRST literal "=" (0x3D) byte only; a sequence with no "=" is a name with an empty-string value',
   ),
   clause(
-    UrlencodedClauseId.EmptyNameEchoLossy, // §2.3
-    ReqLevel.Unmarked,
+    UrlencodedClauseId.EmptyNamePreserved, // §2.3
+    ReqLevel.Must,
     [urlSection('5.1')],
-    'a sequence beginning with "=" yields an empty-string name — a distinct pair from an absent one, though an echo contract may not round-trip it losslessly',
+    'a sequence beginning with "=" splits on that first "=" into an empty-string name and the remaining value — a pair distinct from an absent key, same MUST as the first-equals-splits step; an ordered pair-list echo (e.g. [["", "v"]]) represents it losslessly, unlike an object-keyed echo',
   ),
   clause(
     UrlencodedClauseId.FormPlusIsSpace, // §2.4
@@ -121,8 +125,8 @@ const CLAUSES: readonly Clause[] = [
   clause(
     UrlencodedClauseId.Utf8ReplacementOnDecode, // §2.5
     ReqLevel.Must,
-    [urlSection('5.1')],
-    'the percent-decoded byte sequence is UTF-8 decoded with the replacement character (U+FFFD) substituted for invalid byte sequences, never a throw',
+    [urlSection('5.1'), encodingAnchor('utf-8-decode')],
+    'the percent-decoded byte sequence is UTF-8 decoded — via the WHATWG Encoding "UTF-8 decode" algorithm URL §5.1 defers to — with the replacement character (U+FFFD) substituted for invalid byte sequences, never a throw',
   ),
   clause(
     UrlencodedClauseId.MalformedPercentPreserved, // §2.6
@@ -134,7 +138,7 @@ const CLAUSES: readonly Clause[] = [
     UrlencodedClauseId.WebCompatibleInterpretationNote, // §2.7
     ReqLevel.Unmarked,
     [urlSection('5.1'), rfc(RFC3986, '3.4')],
-    'the web-compatible application/x-www-form-urlencoded algorithm is a stricter, real-world profile of the RFC 3986 generic query grammar, not a competing definition of it',
+    'the web-compatible application/x-www-form-urlencoded algorithm is a stricter, real-world profile of the RFC 3986 generic query grammar (RFC 3986 §3.4 defines only the byte grammar, never &/= pair structure); the uri-generic parsing mode reuses the WHATWG &/= pair-splitting machinery as a documented deviation for testing "generic" query strings, never as an RFC 3986 requirement',
   ),
 ];
 
@@ -173,7 +177,7 @@ const DISPOSITIONS: readonly Disposition[] = [
     clause: UrlencodedClauseId.NulByteHandling,
     rules: [],
     untestable:
-      'The reject limb depends on the raw-data context the NUL byte lands in (server-internal, unknowable blackbox); the no-crash limb is only heuristically observable via Q3 (nul-byte-no-hard-fail), which relates to but does not disposition this clause.',
+      'RFC 3986 itself mandates neither rejecting nor accepting a NUL octet — whether one is rejected depends on the raw-data context it lands in (server-internal, unknowable blackbox), so there is no MUST to grade either way; the no-crash behaviour is only heuristically observable via Q3 (nul-byte-no-hard-fail), which relates to but does not disposition this clause.',
   },
   {
     clause: UrlencodedClauseId.QueryComponentOptionality,
@@ -184,12 +188,7 @@ const DISPOSITIONS: readonly Disposition[] = [
   { clause: UrlencodedClauseId.AmpersandOnlySeparator, rules: [conditional(Rule.UrlencodedAmpersandOnlySeparator)] },
   { clause: UrlencodedClauseId.EmptySequenceSkipped, rules: [conditional(Rule.UrlencodedEmptySequenceSkipped)] },
   { clause: UrlencodedClauseId.FirstEqualsSplits, rules: [conditional(Rule.UrlencodedFirstEqualsSplits)] },
-  {
-    clause: UrlencodedClauseId.EmptyNameEchoLossy,
-    rules: [],
-    untestable:
-      'Echo-lossy: a conforming echo contract may legitimately drop an empty-string key when re-serializing to JSON, so a mismatch here is not a sound parser failure.',
-  },
+  { clause: UrlencodedClauseId.EmptyNamePreserved, rules: [conditional(Rule.UrlencodedEmptyNamePreserved)] },
   { clause: UrlencodedClauseId.FormPlusIsSpace, rules: [conditional(Rule.UrlencodedPlusIsSpace)] },
   { clause: UrlencodedClauseId.UriGenericPlusIsLiteral, rules: [conditional(Rule.UriGenericPlusIsLiteral, Severity.Warn)] },
   { clause: UrlencodedClauseId.Utf8ReplacementOnDecode, rules: [conditional(Rule.UrlencodedUtf8Replacement)] },
@@ -251,7 +250,7 @@ const SNAPSHOT: readonly string[] = [
   'ampersand-only-separator',
   'empty-sequence-skipped',
   'first-equals-splits',
-  'empty-name-echo-lossy',
+  'empty-name-preserved',
   'form-plus-is-space',
   'uri-generic-plus-is-literal',
   'utf8-replacement-on-decode',

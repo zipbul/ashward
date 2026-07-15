@@ -68,4 +68,11 @@ export function craftProbe(target: HttpTarget, probe: ProbeSpec): Uint8Array {
   return craftRequest({ method: probe.method ?? 'GET', target: target.path, host, headers });
 }
 
+/** Append raw query octets to a request-target path without EVER doubling a query: if `path`
+ *  already carries a `?query` (e.g. `resolveTarget` folded the URL's own `search` into it), the
+ *  vector is joined with `&` as an additional pair, never with a second literal `?`. */
+export function appendRawQuery(path: string, rawQuery: string): string {
+  return `${path}${path.includes('?') ? '&' : '?'}${rawQuery}`;
+}
+
 export type { ProbeSpec, PreflightProbe, SimpleProbe };

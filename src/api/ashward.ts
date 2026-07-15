@@ -8,9 +8,10 @@ import { resolveTarget } from './resolve-target';
 
 /**
  * Opt-in query-parser reflection contract: point ashward at a route that echoes back the query it
- * received as an ordered pair-list JSON (see `HttpRuleContext.reflect`). `path` overrides the
- * target's resolved path for the reflect probes only (defaults to the URL's own path when omitted).
- * Undefined by default — every existing caller/test is unaffected.
+ * received as an ordered pair-list JSON (see `HttpRuleContext.reflect`). `path` overrides ONLY the
+ * reflect probes' target path (defaults to the URL's own path when omitted) — every non-reflect
+ * rule keeps probing the URL's own resolved path regardless of `reflect.path`. Undefined by
+ * default — every existing caller/test is unaffected.
  */
 export interface AshwardOptions {
   readonly reflect?: {
@@ -31,7 +32,9 @@ export async function ashward(
   options?: AshwardOptions,
 ): Promise<Report> {
   const target = resolveTarget(url);
-  const reflectPath = options?.reflect?.path;
-  const resolvedTarget = reflectPath !== undefined ? { ...target, path: reflectPath } : target;
-  return runHttp(resolvedTarget, rules, options?.reflect !== undefined ? { mode: options.reflect.mode } : undefined);
+  const reflect =
+    options?.reflect !== undefined
+      ? { mode: options.reflect.mode, ...(options.reflect.path !== undefined ? { path: options.reflect.path } : {}) }
+      : undefined;
+  return runHttp(target, rules, reflect);
 }

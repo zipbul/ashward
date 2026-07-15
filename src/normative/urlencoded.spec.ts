@@ -104,3 +104,11 @@ test('never throws on a lone % at the very end of a sequence', () => {
 test('percent-decoding a name works the same as a value', () => {
   expect(parseFormUrlencoded('%61=1')).toEqual([['a', '1']]);
 });
+
+test('a leading UTF-8 BOM in a value is preserved, not stripped (WHATWG "UTF-8 decode without BOM")', () => {
+  expect(parseFormUrlencoded('a=%EF%BB%BFx')).toEqual([['a', '﻿x']]);
+});
+
+test('a leading UTF-8 BOM in a name is preserved, not stripped', () => {
+  expect(parseFormUrlencoded('%EF%BB%BFa=x')).toEqual([['﻿a', 'x']]);
+});

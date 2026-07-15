@@ -6,25 +6,24 @@ import { SkipReason, Verdict } from '../core/contract/enums';
 import { parseFormUrlencoded } from '../normative/urlencoded';
 import { capturingProbe, replay } from '../testkit/replay';
 import { defineReflectRule } from './kit/reflect-rule';
-import { urlencodedAmpersandOnlySeparator } from './urlencoded-ampersand-only-separator';
+import { urlencodedEmptyNamePreserved } from './urlencoded-empty-name-preserved';
 
 const TARGET: HttpTarget = { host: 'origin.test', port: 80, path: '/echo', timeoutMs: 500 };
 const head = (status: string): string => `HTTP/1.1 ${status}\r\nContent-Type: application/json\r\n\r\n`;
 
-/** Every vector this rule (§2.1 MUST: "&" is the ONLY separator; ";" inside a sequence is DATA)
- *  must handle correctly. `expectedPairs` is ALWAYS derived by calling the oracle on `rawQuery`
- *  in the test, never hand-copied — a wrong rawQuery with a hand-matched expectedPairs would no
- *  longer pass. */
-const VECTORS: readonly string[] = ['a=1;b=2', 'a=1;2;3', 'a=1;b=2&c=3', ';a=1'];
+/** §2.3 MUST (empty-name sub-limb): a sequence beginning with "=" splits into an empty-string name
+ *  and the remaining value — a pair distinct from an absent key, losslessly representable by an
+ *  ordered pair-list echo. `expectedPairs` is ALWAYS derived by calling the oracle on `rawQuery`. */
+const VECTORS: readonly string[] = ['=v', 'a=1&=v', '=v&=w'];
 
 for (const rawQuery of VECTORS) {
   const expectedPairs = parseFormUrlencoded(rawQuery);
   const rule =
-    rawQuery === 'a=1;b=2'
-      ? urlencodedAmpersandOnlySeparator
+    rawQuery === '=v'
+      ? urlencodedEmptyNamePreserved
       : defineReflectRule({
-          id: urlencodedAmpersandOnlySeparator.id,
-          normative: urlencodedAmpersandOnlySeparator.normative,
+          id: urlencodedEmptyNamePreserved.id,
+          normative: urlencodedEmptyNamePreserved.normative,
           mode: 'form',
           rawQuery,
           expectedPairs,
@@ -38,14 +37,9 @@ for (const rawQuery of VECTORS) {
   });
 }
 
-test('fails when the echo wrongly splits on the semicolon', async () => {
-  const out = await urlencodedAmpersandOnlySeparator.run({
-    probe: replay(
-      `${head('200 OK')}${JSON.stringify([
-        ['a', '1'],
-        ['b', '2'],
-      ])}`,
-    ),
+test('fails when the echo drops the empty-string-key pair entirely', async () => {
+  const out = await urlencodedEmptyNamePreserved.run({
+    probe: replay(`${head('200 OK')}${JSON.stringify([])}`),
     target: TARGET,
     reflect: { mode: 'form' },
   });
@@ -53,19 +47,9 @@ test('fails when the echo wrongly splits on the semicolon', async () => {
 });
 
 test('is skipped as endpoint-not-reflecting when reflect is not opted in', async () => {
-  const out = await urlencodedAmpersandOnlySeparator.run({
-    probe: replay(`${head('200 OK')}${JSON.stringify(parseFormUrlencoded('a=1;b=2'))}`),
+  const out = await urlencodedEmptyNamePreserved.run({
+    probe: replay(`${head('200 OK')}${JSON.stringify(parseFormUrlencoded('=v'))}`),
     target: TARGET,
-  });
-  expect(out.verdict).toBe(Verdict.Skip);
-  expect(out.reason).toBe(SkipReason.EndpointNotReflecting);
-});
-
-test('is skipped as endpoint-not-reflecting on a non-2xx response', async () => {
-  const out = await urlencodedAmpersandOnlySeparator.run({
-    probe: replay(`${head('404 Not Found')}${JSON.stringify(parseFormUrlencoded('a=1;b=2'))}`),
-    target: TARGET,
-    reflect: { mode: 'form' },
   });
   expect(out.verdict).toBe(Verdict.Skip);
   expect(out.reason).toBe(SkipReason.EndpointNotReflecting);

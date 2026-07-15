@@ -13,11 +13,14 @@ export interface HttpTarget {
   readonly timeoutMs: number;
 }
 
-/** A caller-opted echo contract (query-parser reflection rules): the route at `target.path` echoes
- *  back an ordered pair list JSON of the query it received, parsed per this declared mode. Optional
- *  and undefined by default — a reflect rule Skips(EndpointNotReflecting) when absent. */
+/** A caller-opted echo contract (query-parser reflection rules): the route at `path` (defaulting to
+ *  `target.path` when omitted) echoes back an ordered pair list JSON of the query it received,
+ *  parsed per this declared mode. Optional and undefined by default — a reflect rule
+ *  Skips(EndpointNotReflecting) when absent. `path` is read ONLY by `defineReflectRule` — every
+ *  other rule (including the Q1-Q4 heuristics) always probes `target.path`, never this one. */
 export interface ReflectConfig {
   readonly mode: 'form' | 'uri-generic';
+  readonly path?: string;
 }
 
 /** What an HTTP-domain rule is given: the target-bound probe and the resolved endpoint, so it can

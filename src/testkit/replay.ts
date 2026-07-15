@@ -23,6 +23,23 @@ export function replay(...responses: readonly string[]): ProbeFn {
   };
 }
 
+/** A ProbeFn that replays one canned response and records the request-line it was sent, so a test
+ *  can assert on the EXACT bytes a rule crafted (e.g. the request-target with its raw query),
+ *  never just the resulting verdict — a wrong crafted request with a coincidentally-right verdict
+ *  would no longer pass. */
+export function capturingProbe(rawResponse: string): { probe: ProbeFn; sentLine: () => string; sentRequest: () => Uint8Array } {
+  let sent: Uint8Array = new Uint8Array(0);
+  const probe: ProbeFn = async bytes => {
+    sent = bytes;
+    return Promise.resolve({ response: new TextEncoder().encode(rawResponse), termination: TerminationCause.Fin });
+  };
+  return {
+    probe,
+    sentLine: () => new TextDecoder().decode(sent).split('\r\n')[0] ?? '',
+    sentRequest: () => sent,
+  };
+}
+
 /** A ProbeFn that replays canned head+body exchanges in order (repeating the last for any extra
  *  call), for driving a body-bearing rule's judge (see response-rule.ts) without a socket. Each
  *  exchange's `.response` is `head + body`; termination is a clean `Fin` unless `complete: false`,

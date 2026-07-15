@@ -1,11 +1,24 @@
 /**
- * The `application/x-www-form-urlencoded` parser (WHATWG URL §5) and the RFC 3986 §3.4 generic
- * URI query, as pure oracles: split on literal `&` only, skip empty sequences, split each
- * sequence on the FIRST literal `=` only (no `=` → empty-string value), percent-decode with a
- * malformed `%` sequence preserved literally (never consumed), then UTF-8 decode the resulting
- * byte sequence with U+FFFD substitution for invalid sequences (never throws). The two functions
- * differ ONLY in whether `+` is substituted for space — and that substitution happens on the RAW
- * bytes, before percent-decoding, exactly mirroring the WHATWG algorithm's ordering.
+ * Two pure oracles over a raw query string: `parseFormUrlencoded` is the WHATWG URL §5
+ * `application/x-www-form-urlencoded` parsing algorithm, verbatim. `parseUriGenericQuery` shares
+ * that SAME &/= pair-splitting, percent-decoding, and UTF-8-decoding machinery, applied to a bare
+ * RFC 3986 §3.4 generic query component with the `+`-as-space substitution turned off.
+ *
+ * IMPORTANT — an honesty note, not a spec claim: RFC 3986 §3.4 defines the query component only as
+ * a byte grammar (`query = *( pchar / "/" / "?" )`, delimited from the fragment by "#"); it does
+ * NOT define `&`-separated pairs or `=`-split name/value structure. That pair convention is the
+ * WHATWG URL form algorithm's, not RFC 3986's. `parseUriGenericQuery` reuses it here as a
+ * DOCUMENTED DEVIATION — a practical, widely-interoperable reading of "generic" query strings for
+ * testing purposes — never as if RFC 3986 itself mandated `&`/`=` pair decomposition. RFC 3986 is
+ * the correct citation only for the octet/percent-encoding layer (§2.1) and the bare query grammar
+ * (§3.4); it is never cited for the pair-splitting behaviour itself.
+ *
+ * Both functions: split on literal `&` only, skip empty sequences, split each sequence on the
+ * FIRST literal `=` only (no `=` → empty-string value), percent-decode with a malformed `%`
+ * sequence preserved literally (never consumed), then UTF-8 decode the resulting byte sequence
+ * with U+FFFD substitution for invalid sequences (never throws). The two functions differ ONLY in
+ * whether `+` is substituted for space — and that substitution happens on the RAW bytes, before
+ * percent-decoding, exactly mirroring the WHATWG algorithm's ordering.
  */
 
 const AMPERSAND = 0x26;
@@ -15,7 +28,10 @@ const SPACE = 0x20;
 const PERCENT = 0x25;
 
 const encoder = new TextEncoder();
-const decoder = new TextDecoder('utf-8', { fatal: false });
+// WHATWG Encoding "UTF-8 decode without BOM" is the algorithm the WHATWG URL query parser actually
+// calls — it explicitly does NOT strip a leading BOM (unlike plain "UTF-8 decode", which does).
+// `ignoreBOM: true` matches that: a decoded name/value keeps a leading U+FEFF as data.
+const decoder = new TextDecoder('utf-8', { fatal: false, ignoreBOM: true });
 
 function isHexDigit(byte: number): boolean {
   return (byte >= 0x30 && byte <= 0x39) || (byte >= 0x41 && byte <= 0x46) || (byte >= 0x61 && byte <= 0x66);

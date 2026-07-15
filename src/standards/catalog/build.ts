@@ -3,7 +3,7 @@ import type { Clause, RuleMapping } from '../catalog-types';
 import type { StandardDocument } from '../types';
 
 import { Severity, TestabilityBasis } from '../disposition-enums';
-import { WHATWG_FETCH, WHATWG_URL, WICG_PNA } from '../documents';
+import { WHATWG_ENCODING, WHATWG_FETCH, WHATWG_URL, WICG_PNA } from '../documents';
 import { LocatorKind, ReqLevel } from '../enums';
 
 /** A citation shorthand, pre-`req`: {@link clause} stamps each with the clause's requirement level
@@ -17,6 +17,7 @@ interface Cite {
 export const fetchAnchor = (value: string): Cite => ({ doc: WHATWG_FETCH, kind: LocatorKind.Anchor, value });
 export const rfc = (doc: StandardDocument, value: string): Cite => ({ doc, kind: LocatorKind.Section, value });
 export const urlSection = (value: string): Cite => ({ doc: WHATWG_URL, kind: LocatorKind.Section, value });
+export const encodingAnchor = (value: string): Cite => ({ doc: WHATWG_ENCODING, kind: LocatorKind.Anchor, value });
 export const pnaSection = (value: string): Cite => ({ doc: WICG_PNA, kind: LocatorKind.Section, value });
 
 /** Assemble a clause: stamp every co-citation with the clause's requirement level. */

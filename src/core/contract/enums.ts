@@ -99,6 +99,7 @@ export enum Rule {
   // Query-parser — reflection parse-correctness (Q5-Q11)
   UrlencodedAmpersandOnlySeparator = 'urlencoded-ampersand-only-separator',
   UrlencodedFirstEqualsSplits = 'urlencoded-first-equals-splits',
+  UrlencodedEmptyNamePreserved = 'urlencoded-empty-name-preserved',
   UrlencodedPlusIsSpace = 'urlencoded-plus-is-space',
   UriGenericPlusIsLiteral = 'uri-generic-plus-is-literal',
   UrlencodedUtf8Replacement = 'urlencoded-utf8-replacement',
