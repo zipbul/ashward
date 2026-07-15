@@ -54,3 +54,26 @@ test('is skipped as out-of-scope on a malformed lowercase weak prefix (ETag-gram
   expect(out.verdict).toBe(Verdict.Skip);
   expect(out.reason).toBe(SkipReason.OutOfScope);
 });
+
+test('is skipped as out-of-scope on an unquoted ETag value', async () => {
+  const out = await run('HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\nETag: v1\r\n\r\n', 'HTTP/1.1 200 OK\r\nETag: "v1"\r\n\r\n');
+  expect(out.verdict).toBe(Verdict.Skip);
+  expect(out.reason).toBe(SkipReason.OutOfScope);
+});
+
+test('is skipped as out-of-scope on an unquoted weak-prefixed ETag value', async () => {
+  const out = await run(
+    'HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\nETag: W/v1\r\n\r\n',
+    'HTTP/1.1 200 OK\r\nETag: "v1"\r\n\r\n',
+  );
+  expect(out.verdict).toBe(Verdict.Skip);
+  expect(out.reason).toBe(SkipReason.OutOfScope);
+});
+
+test('passes valid, distinct strong entity-tags', async () => {
+  const out = await run(
+    'HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\nETag: "gzip-v1"\r\n\r\n',
+    'HTTP/1.1 200 OK\r\nETag: "plain-v1"\r\n\r\n',
+  );
+  expect(out.verdict).toBe(Verdict.Pass);
+});

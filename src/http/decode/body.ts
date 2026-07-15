@@ -1,7 +1,9 @@
 import type { ResponseHead } from './interfaces';
 
+import { CONTENT_LENGTH, TRANSFER_ENCODING } from '../../normative/header-names';
+import { TerminationCause } from '../../transport/tcp/enums';
 import { CR, LF } from './constants';
-import { fieldValues, singleFieldValue } from './fields';
+import { fieldValues } from './fields';
 
 interface DecodedBodyShape {
   readonly content: Uint8Array;
@@ -10,25 +12,50 @@ interface DecodedBodyShape {
 
 const INCOMPLETE: DecodedBodyShape = { content: new Uint8Array(0), complete: false };
 
-/** RFC 9112 §6.1: chunked applies iff it is the LAST coding in Transfer-Encoding. A
- *  Transfer-Encoding split across multiple field lines is folded into one comma list first. */
-function isChunked(head: ResponseHead): boolean {
-  const codings = fieldValues(head, 'Transfer-Encoding')
+/** Transfer-Encoding's codings, in order, folded across repeated field lines into one comma
+ *  list first (RFC 9112 §6.1). Empty when the field is absent. */
+function transferCodings(head: ResponseHead): readonly string[] {
+  return fieldValues(head, TRANSFER_ENCODING)
     .flatMap(value => value.split(','))
     .map(coding => coding.trim())
     .filter(coding => coding.length > 0);
+}
+
+/** RFC 9112 §6.1: chunked applies iff it is the LAST coding in Transfer-Encoding. */
+function isChunked(codings: readonly string[]): boolean {
   const last = codings[codings.length - 1];
   return last?.toLowerCase() === 'chunked';
 }
 
-/** A non-negative integer Content-Length (RFC 9112 §6.3), or null when absent/invalid. */
-function contentLength(head: ResponseHead): number | null {
-  const value = singleFieldValue(head, 'Content-Length');
-  if (value === null || !/^\d+$/.test(value)) {
-    return null;
+type ContentLengthResult =
+  | { readonly kind: 'absent' }
+  | { readonly kind: 'ambiguous' }
+  | { readonly kind: 'value'; readonly length: number };
+
+/**
+ * RFC 9112 §6.3: every Content-Length field value must be a non-negative integer, and repeated
+ * fields must all agree — disagreement makes the message length ambiguous, which MUST NOT be
+ * silently resolved by reading to EOF. A single invalid value is simply treated as absent.
+ */
+function contentLength(head: ResponseHead): ContentLengthResult {
+  const values = fieldValues(head, CONTENT_LENGTH);
+  if (values.length === 0) {
+    return { kind: 'absent' };
   }
-  const length = Number(value);
-  return Number.isSafeInteger(length) ? length : null;
+
+  const lengths = new Set<number>();
+  for (const value of values) {
+    if (!/^\d+$/.test(value)) {
+      return { kind: 'absent' };
+    }
+    const length = Number(value);
+    if (!Number.isSafeInteger(length)) {
+      return { kind: 'absent' };
+    }
+    lengths.add(length);
+  }
+
+  return lengths.size === 1 ? { kind: 'value', length: [...lengths][0]! } : { kind: 'ambiguous' };
 }
 
 /** Find the CRLF (or bare LF) terminating a line starting at `start`. Returns the index of
@@ -58,6 +85,9 @@ function decodeChunked(raw: Uint8Array, bodyOffset: number): DecodedBodyShape {
     }
 
     const size = Number.parseInt(sizeText, 16);
+    if (!Number.isSafeInteger(size)) {
+      return { content: concat(chunks), complete: false };
+    }
     if (size === 0) {
       return { content: concat(chunks), complete: skipTrailer(raw, sizeLine.next) };
     }
@@ -109,26 +139,43 @@ export type DecodedBody = DecodedBodyShape;
 
 /**
  * Recover the decoded message content — what a client would treat as the body — plus
- * whether the message completed, per RFC 9112 §6-7 transfer-framing precedence:
- * chunked Transfer-Encoding, then Content-Length, then close-delimited. This layer only
- * removes TRANSFER framing; content-coding (gzip, etc.) is a separate concern.
+ * whether the message completed, per RFC 9112 §6.3 transfer-framing precedence: chunked
+ * Transfer-Encoding, then (only when Transfer-Encoding is absent or itself close-delimited)
+ * Content-Length, then close-delimited. This layer only removes TRANSFER framing; content-coding
+ * (gzip, etc.) is a separate concern.
+ *
+ * `termination` is how the transport ended the exchange (absent when unknown, e.g. in a unit
+ * test that only cares about framing). It matters only for a close-delimited body: chunked and
+ * Content-Length-framed bodies always compute completeness from the bytes themselves, but a
+ * close-delimited body is "complete" only when the peer actually closed cleanly (a clean FIN) —
+ * an RST or timeout mid-body must not be reported as a complete message.
  */
-export function decodeBody(raw: Uint8Array, head: ResponseHead): DecodedBody {
+export function decodeBody(raw: Uint8Array, head: ResponseHead, termination?: TerminationCause): DecodedBody {
   const { bodyOffset } = head;
   if (bodyOffset === undefined) {
     return INCOMPLETE;
   }
 
-  if (isChunked(head)) {
+  const codings = transferCodings(head);
+
+  if (isChunked(codings)) {
     return decodeChunked(raw, bodyOffset);
   }
 
-  const length = contentLength(head);
-  if (length !== null) {
-    const available = raw.length - bodyOffset;
-    const has = Math.min(length, Math.max(available, 0));
-    return { content: raw.subarray(bodyOffset, bodyOffset + has), complete: available >= length };
+  // RFC 9112 §6.3: Transfer-Encoding present with a non-chunked last coding makes the message
+  // close-delimited outright — Content-Length (if also present) MUST be ignored.
+  if (codings.length === 0) {
+    const length = contentLength(head);
+    if (length.kind === 'value') {
+      const available = raw.length - bodyOffset;
+      const has = Math.min(length.length, Math.max(available, 0));
+      return { content: raw.subarray(bodyOffset, bodyOffset + has), complete: available >= length.length };
+    }
+    if (length.kind === 'ambiguous') {
+      return { content: new Uint8Array(0), complete: false };
+    }
   }
 
-  return { content: raw.subarray(bodyOffset), complete: true };
+  const complete = termination === undefined || termination === TerminationCause.Fin;
+  return { content: raw.subarray(bodyOffset), complete };
 }

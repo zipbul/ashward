@@ -1,6 +1,6 @@
 import { InconclusiveReason, Rule, SkipReason, Verdict } from '../core/contract/enums';
 import { ACCEPT_ENCODING } from '../normative/header-names';
-import { zstdWindowSize } from '../normative/zstd';
+import { zstdWindowSizes } from '../normative/zstd';
 import { CompressionClauseId } from '../standards/catalog/compression';
 import { refsFor } from './kit/clause-refs';
 import { outermostCoding } from './kit/content-encoding';
@@ -13,7 +13,9 @@ const HTTP_ZSTD_WINDOW_CAP = 8 * 1024 * 1024;
  * §5.4 — a `zstd` content-coded response MUST NOT require a decoder window exceeding 8 MiB
  * (RFC 9659 §3). Judged only when `zstd` is the OUTERMOST (last) `Content-Encoding` token; a body
  * that does not parse as a zstd frame at all (bad magic) is out of the window rule's scope — a
- * mislabel is a separate, unshipped format concern (see `zstd-reserved-bits-zero`).
+ * mislabel is a separate, unshipped format concern (see `zstd-reserved-bits-zero`). RFC 8878 §3.1
+ * permits concatenated frames, and the cap applies PER frame, so every frame in the body is
+ * checked — one oversized frame fails the rule even behind a conformant first frame.
  */
 export const zstdWindowWithinHttpCap = defineResponseRule({
   id: Rule.ZstdWindowWithinHttpCap,
@@ -34,10 +36,10 @@ export const zstdWindowWithinHttpCap = defineResponseRule({
     if (!exchange.complete) {
       return { verdict: Verdict.Inconclusive, reason: InconclusiveReason.IncompleteMessage };
     }
-    const windowSize = zstdWindowSize(exchange.content);
-    if (windowSize === null) {
+    const windowSizes = zstdWindowSizes(exchange.content);
+    if (windowSizes.length === 0) {
       return { verdict: Verdict.Skip, reason: SkipReason.OutOfScope };
     }
-    return windowSize > HTTP_ZSTD_WINDOW_CAP ? { verdict: Verdict.Fail } : { verdict: Verdict.Pass };
+    return windowSizes.some(size => size > HTTP_ZSTD_WINDOW_CAP) ? { verdict: Verdict.Fail } : { verdict: Verdict.Pass };
   },
 });

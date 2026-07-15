@@ -70,3 +70,12 @@ test('is skipped as header-absent when Content-Encoding is missing', async () =>
   expect(out.verdict).toBe(Verdict.Skip);
   expect(out.reason).toBe(SkipReason.HeaderAbsent);
 });
+
+// RFC 8878 §3.1 permits concatenated frames — a clean first frame must not hide a reserved-bit
+// violation on a later frame.
+test('warns when the Reserved bit is set on the SECOND concatenated frame', async () => {
+  const clean = buildZstdFrame({ singleSegment: false, windowExponent: 10, windowMantissa: 0, terminated: true });
+  const dirty = buildZstdFrame({ singleSegment: false, windowExponent: 10, windowMantissa: 0, reservedBit: 1, terminated: true });
+  const out = await run(exchange(CE, [...clean, ...dirty]));
+  expect(out.verdict).toBe(Verdict.Warn);
+});

@@ -16,6 +16,10 @@ interface ZstdFrameOptions {
   readonly dictionaryId?: number;
   readonly unusedBit?: 0 | 1;
   readonly reservedBit?: 0 | 1;
+  /** When true, append a minimal terminating Block_Header (RFC 8878 §3.1.1.2: Last_Block=1,
+   *  Block_Type=Raw_Block, Block_Size=0) so the frame is self-delimiting — required for building
+   *  a multi-frame fixture the block-walking multi-frame parser can find the next frame after. */
+  readonly terminated?: boolean;
 }
 
 function writeUintLe(value: number, size: number): number[] {
@@ -59,6 +63,11 @@ export function buildZstdFrame(options: ZstdFrameOptions): number[] {
   if (actualFcsBytes > 0) {
     const raw = fcsFlag === 1 ? (options.frameContentSize ?? 0) - 256 : (options.frameContentSize ?? 0);
     bytes.push(...writeUintLe(raw, actualFcsBytes));
+  }
+
+  if (options.terminated === true) {
+    // Block_Header (3-byte LE): Last_Block=1, Block_Type=0 (Raw_Block), Block_Size=0.
+    bytes.push(0x01, 0x00, 0x00);
   }
 
   return bytes;

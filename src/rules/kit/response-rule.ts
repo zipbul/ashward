@@ -108,7 +108,7 @@ export function defineResponseRule(spec: ResponseRuleSpec): RuleDef<HttpRuleCont
             ...withEvidence(evidenceAt(requests, probed, index)),
           };
         }
-        const { content, complete } = decodeBody(result.response, head);
+        const { content, complete } = decodeBody(result.response, head, result.termination);
         exchanges.push({ head, content, complete });
       }
 

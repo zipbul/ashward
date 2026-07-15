@@ -178,13 +178,13 @@ const CLAUSES: readonly Clause[] = [
     CompressionClauseId.GzipFormatValid, // §5.1
     ReqLevel.Unmarked,
     [rfc(RFC9110, '8.4.1.3'), rfc(RFC1952, '2.3.1'), rfc(RFC1952, '2.3.1.2')],
-    'gzip is the RFC 1952 file format: correct ID1/ID2/CM(=8 deflate)/CRC32/ISIZE, reserved FLG bits zero',
+    'gzip is the RFC 1952 file format: fixed 10-byte member header sanity (ID1/ID2/CM=8 deflate, reserved FLG bits zero)',
   ),
   clause(
     CompressionClauseId.DeflateZlibWrapped, // §5.2
     ReqLevel.Unmarked,
     [rfc(RFC9110, '8.4.1.2'), rfc(RFC1950, '2.2'), rfc(RFC1950, '2.3')],
-    'HTTP deflate is RFC 1951 deflate inside the RFC 1950 zlib wrapper, never raw deflate; FDICT unset, correct check bits',
+    'HTTP deflate is RFC 1951 deflate inside the RFC 1950 zlib wrapper, never raw deflate: header sanity (CM=8, CINFO<=7, FDICT unset, correct check bits)',
   ),
   clause(
     CompressionClauseId.BrotliFormat, // §5.3

@@ -41,3 +41,10 @@ test('passes a 204 with no Content-Encoding', async () => {
   const out = await run('HTTP/1.1 204 No Content\r\n\r\n');
   expect(out.verdict).toBe(Verdict.Pass);
 });
+
+// `identity` is not a real content-coding (RFC 9110 §8.4.1) — that concern belongs to
+// content-encoding-no-identity-token (R1), not this bodiless-response clause.
+test('passes a 204 that only carries Content-Encoding: identity', async () => {
+  const out = await run('HTTP/1.1 204 No Content\r\nContent-Encoding: identity\r\n\r\n');
+  expect(out.verdict).toBe(Verdict.Pass);
+});

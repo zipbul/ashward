@@ -98,3 +98,12 @@ test('is skipped as header-absent when Content-Encoding is missing', async () =>
   expect(out.verdict).toBe(Verdict.Skip);
   expect(out.reason).toBe(SkipReason.HeaderAbsent);
 });
+
+// RFC 8878 §3.1 permits concatenated frames, and RFC 9659 §3's 8 MiB cap applies PER frame — a
+// conformant first frame must not hide an oversized second frame from the rule.
+test('fails when only the SECOND concatenated frame exceeds the 8 MiB window cap', async () => {
+  const conformant = buildZstdFrame({ singleSegment: false, windowExponent: 13, windowMantissa: 0, terminated: true }); // 8 MiB
+  const oversized = buildZstdFrame({ singleSegment: false, windowExponent: 13, windowMantissa: 1, terminated: true }); // 9 MiB
+  const out = await run(exchange(CE, [...conformant, ...oversized]));
+  expect(out.verdict).toBe(Verdict.Fail);
+});

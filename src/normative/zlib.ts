@@ -15,6 +15,12 @@ export function isZlibWrapped(bytes: Uint8Array): boolean {
     return false;
   }
 
+  // RFC 1950 §2.2: CINFO (the CMF high nibble) is only defined up to 7 for CM=8 (deflate) — a
+  // window size beyond 32K is not a valid deflate wrapper.
+  if (cmf >> 4 > 7) {
+    return false;
+  }
+
   if ((cmf * 256 + flg) % 31 !== 0) {
     return false;
   }

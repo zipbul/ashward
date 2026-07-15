@@ -33,6 +33,15 @@ function isServerError(head: ResponseHead): boolean {
   return head.statusLine.statusCode >= 500 && head.statusLine.statusCode <= 599;
 }
 
+/** RFC 9110 §15.1: status codes cacheable by default, absent explicit cache-control directives.
+ *  A status outside this set (e.g. a 4xx not on the list, or any other non-default status) is not
+ *  cacheable, so a missing `Vary: Accept-Encoding` on it is not a soundly gradeable failure. */
+const DEFAULT_CACHEABLE_STATUSES = new Set([200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, 501]);
+
+function isCacheableStatus(head: ResponseHead): boolean {
+  return DEFAULT_CACHEABLE_STATUSES.has(head.statusLine.statusCode);
+}
+
 /**
  * §4.1 — a resource negotiated by `Accept-Encoding` SHOULD carry `Vary: Accept-Encoding` on a
  * cacheable response, including its identity (uncompressed) choice — else a shared cache reuses
@@ -49,10 +58,10 @@ export const varyAcceptEncodingOnNegotiated = defineResponseRule({
     if (a === undefined || b === undefined) {
       return { verdict: Verdict.Skip, reason: SkipReason.NotNegotiated };
     }
-    if (isServerError(b.head)) {
+    if (isServerError(a.head) || isServerError(b.head)) {
       return { verdict: Verdict.Skip, reason: SkipReason.EndpointUnstable };
     }
-    if (hasNoStore(a.head) || hasNoStore(b.head)) {
+    if (hasNoStore(a.head) || hasNoStore(b.head) || !isCacheableStatus(a.head) || !isCacheableStatus(b.head)) {
       return { verdict: Verdict.Skip, reason: SkipReason.NotCacheable };
     }
     const aCompressed = isCompressed(a.head);

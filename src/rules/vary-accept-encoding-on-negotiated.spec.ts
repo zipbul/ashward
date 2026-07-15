@@ -56,3 +56,15 @@ test('is skipped as endpoint-unstable when the identity probe 500s', async () =>
   expect(out.verdict).toBe(Verdict.Skip);
   expect(out.reason).toBe(SkipReason.EndpointUnstable);
 });
+
+test('is skipped as endpoint-unstable when the gzip probe (A) 500s', async () => {
+  const out = await run('HTTP/1.1 500 Internal Server Error\r\nContent-Encoding: gzip\r\n\r\n', 'HTTP/1.1 200 OK\r\n\r\n');
+  expect(out.verdict).toBe(Verdict.Skip);
+  expect(out.reason).toBe(SkipReason.EndpointUnstable);
+});
+
+test('is skipped as not-cacheable on a status outside the default-cacheable set', async () => {
+  const out = await run('HTTP/1.1 201 Created\r\nContent-Encoding: gzip\r\n\r\n', 'HTTP/1.1 201 Created\r\n\r\n');
+  expect(out.verdict).toBe(Verdict.Skip);
+  expect(out.reason).toBe(SkipReason.NotCacheable);
+});

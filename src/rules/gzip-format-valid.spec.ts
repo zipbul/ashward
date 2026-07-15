@@ -9,6 +9,9 @@ import { gzipFormatValid } from './gzip-format-valid';
 
 const TARGET: HttpTarget = { host: 'origin.test', port: 80, path: '/', timeoutMs: 500 };
 
+// A full RFC 1952 §2.3.1 fixed 10-byte gzip member header (ID1 ID2 CM FLG MTIME[4] XFL OS).
+const WELL_FORMED_GZIP_HEADER = [0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+
 function exchange(
   headFields: string,
   body: readonly number[],
@@ -32,7 +35,7 @@ const probeOnce =
 const run = async (result: ProbeResult) => gzipFormatValid.run({ probe: probeOnce(result), target: TARGET });
 
 test('passes a well-formed gzip member header', async () => {
-  const out = await run(exchange('Content-Encoding: gzip', [0x1f, 0x8b, 0x08, 0x00]));
+  const out = await run(exchange('Content-Encoding: gzip', WELL_FORMED_GZIP_HEADER));
   expect(out.verdict).toBe(Verdict.Pass);
 });
 
@@ -59,7 +62,7 @@ test('is skipped as header-absent when Content-Encoding is missing', async () =>
 });
 
 test('passes when gzip is the outermost token (br, gzip)', async () => {
-  const out = await run(exchange('Content-Encoding: br, gzip', [0x1f, 0x8b, 0x08, 0x00]));
+  const out = await run(exchange('Content-Encoding: br, gzip', WELL_FORMED_GZIP_HEADER));
   expect(out.verdict).toBe(Verdict.Pass);
 });
 
@@ -70,6 +73,21 @@ test('is skipped as stacked-coding when gzip is not the outermost token (gzip, b
 });
 
 test('passes the x-gzip alias as the outermost token', async () => {
-  const out = await run(exchange('Content-Encoding: x-gzip', [0x1f, 0x8b, 0x08, 0x00]));
+  const out = await run(exchange('Content-Encoding: x-gzip', WELL_FORMED_GZIP_HEADER));
   expect(out.verdict).toBe(Verdict.Pass);
+});
+
+// RFC 9112 §6.3: a close-delimited body (no Transfer-Encoding, no Content-Length) is only
+// complete when the peer closed cleanly. A non-Fin termination mid-body must not let a truncated
+// compressed body reach the format judge as if it were complete.
+test('is inconclusive with incomplete-message on a close-delimited body ended by a non-Fin termination', async () => {
+  const head = 'HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\n\r\n';
+  const body = Uint8Array.from([0x1f, 0x8b, 0x08, 0x00]);
+  const headBytes = new TextEncoder().encode(head);
+  const response = new Uint8Array(headBytes.length + body.length);
+  response.set(headBytes, 0);
+  response.set(body, headBytes.length);
+  const out = await run({ response, termination: TerminationCause.Rst });
+  expect(out.verdict).toBe(Verdict.Inconclusive);
+  expect(out.reason).toBe(InconclusiveReason.IncompleteMessage);
 });

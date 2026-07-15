@@ -1,18 +1,19 @@
 import { test, expect } from 'bun:test';
 
+import { TerminationCause } from '../../transport/tcp/enums';
 import { decodeBody } from './body';
 import { parseResponseHead } from './head-parse';
 
 const bytes = (s: string): Uint8Array => new TextEncoder().encode(s);
 const text = (u: Uint8Array): string => new TextDecoder().decode(u);
 
-function decode(raw: string): ReturnType<typeof decodeBody> {
+function decode(raw: string, termination?: TerminationCause): ReturnType<typeof decodeBody> {
   const buffer = bytes(raw);
   const head = parseResponseHead(buffer);
   if (head === null) {
     throw new Error('unparseable head in test fixture');
   }
-  return decodeBody(buffer, head);
+  return decodeBody(buffer, head, termination);
 }
 
 test('de-chunks two chunks terminated by a 0-chunk', () => {
@@ -87,5 +88,51 @@ test('yields empty content, incomplete, when the head never reached a body bound
   expect(head?.bodyOffset).toBeUndefined();
   const result = decodeBody(buffer, head!);
   expect(result.content.length).toBe(0);
+  expect(result.complete).toBe(false);
+});
+
+// RFC 9112 §6.3: Transfer-Encoding present with a non-chunked last coding makes the message
+// close-delimited — Content-Length MUST be ignored, not honored.
+test('Transfer-Encoding present and non-chunked overrides Content-Length: reads the full close-delimited body', () => {
+  const raw = 'HTTP/1.1 200 OK\r\nTransfer-Encoding: gzip\r\nContent-Length: 5\r\n\r\n' + 'x'.repeat(20);
+  const result = decode(raw);
+  expect(result.content.length).toBe(20);
+  expect(result.complete).toBe(true);
+});
+
+test('Transfer-Encoding: chunked, gzip (chunked not last) ignores a shorter Content-Length', () => {
+  const raw = 'HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked, gzip\r\nContent-Length: 3\r\n\r\nraw-bytes-not-dechunked';
+  const result = decode(raw);
+  expect(text(result.content)).toBe('raw-bytes-not-dechunked');
+  expect(result.complete).toBe(true);
+});
+
+// A close-delimited body's completeness must reflect how the transport ended, not be assumed true.
+test('close-delimited body is incomplete when the peer reset instead of a clean FIN', () => {
+  const result = decode('HTTP/1.1 200 OK\r\n\r\nsome bytes', TerminationCause.Rst);
+  expect(text(result.content)).toBe('some bytes');
+  expect(result.complete).toBe(false);
+});
+
+test('close-delimited body is complete on a clean FIN', () => {
+  const result = decode('HTTP/1.1 200 OK\r\n\r\nsome bytes', TerminationCause.Fin);
+  expect(text(result.content)).toBe('some bytes');
+  expect(result.complete).toBe(true);
+});
+
+test('close-delimited body defaults to complete when no termination is given', () => {
+  const result = decode('HTTP/1.1 200 OK\r\n\r\nsome bytes');
+  expect(result.complete).toBe(true);
+});
+
+// RFC 9112 §6.3: repeated Content-Length is only safe when every value agrees.
+test('duplicate identical Content-Length fields are used', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5\r\nContent-Length: 5\r\n\r\nhello');
+  expect(text(result.content)).toBe('hello');
+  expect(result.complete).toBe(true);
+});
+
+test('conflicting Content-Length fields make the message ambiguous, not close-delimited', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5\r\nContent-Length: 10\r\n\r\nhello-world-extra');
   expect(result.complete).toBe(false);
 });

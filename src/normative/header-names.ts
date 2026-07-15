@@ -29,3 +29,7 @@ export const CONTENT_ENCODING = 'Content-Encoding';
 export const ACCEPT_ENCODING = 'Accept-Encoding';
 export const ETAG = 'ETag';
 export const CACHE_CONTROL = 'Cache-Control';
+
+/** HTTP/1.1 message-framing fields (RFC 9112 §6). */
+export const CONTENT_LENGTH = 'Content-Length';
+export const TRANSFER_ENCODING = 'Transfer-Encoding';
