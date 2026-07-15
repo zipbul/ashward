@@ -13,6 +13,7 @@ export enum InconclusiveReason {
   AmbiguousFraming = 'ambiguous-framing',
   MalformedResponse = 'malformed-response',
   DriverError = 'driver-error',
+  IncompleteMessage = 'incomplete-message',
 }
 
 /**
@@ -21,6 +22,16 @@ export enum InconclusiveReason {
  */
 export enum SkipReason {
   HeaderAbsent = 'header-absent',
+  NotApplicable = 'not-applicable',
+  NotNegotiated = 'not-negotiated',
+  NotCacheable = 'not-cacheable',
+  StackedCoding = 'stacked-coding',
+  EndpointNotReflecting = 'endpoint-not-reflecting',
+  EndpointUnstable = 'endpoint-unstable',
+  NotCompressed = 'not-compressed',
+  SameRepresentation = 'same-representation',
+  NoValidator = 'no-validator',
+  OutOfScope = 'out-of-scope',
 }
 
 /**
