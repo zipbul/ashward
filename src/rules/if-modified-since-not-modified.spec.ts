@@ -20,12 +20,33 @@ test('passes when If-Modified-Since:<L> elicits 304 and a far-past date is honor
 });
 
 test('warns (never fails, SHOULD) when If-Modified-Since:<L> is ignored and the method is performed', async () => {
-  const out = await run(res('200 OK', LAST_MODIFIED), res('200 OK'), res('200 OK'));
+  const out = await run(res('200 OK', LAST_MODIFIED), res('200 OK'), res('200 OK'), res('200 OK', LAST_MODIFIED));
+  expect(out.verdict).toBe(Verdict.Warn);
+});
+
+// BLOCKER 3 — the contrast (far-past IMS) probe must actually be consulted: a server that answers
+// 304 unconditionally (ignoring If-Modified-Since's value entirely) must not false-Pass just because
+// the IMS:<L> probe happened to land on 304.
+test('warns when the server answers 304 unconditionally, ignoring If-Modified-Since entirely', async () => {
+  const out = await run(
+    res('200 OK', LAST_MODIFIED),
+    res('304 Not Modified'),
+    res('304 Not Modified'),
+    res('200 OK', LAST_MODIFIED),
+  );
   expect(out.verdict).toBe(Verdict.Warn);
 });
 
 test('is skipped with no-validator when the discovered representation carries no Last-Modified', async () => {
   const out = await run(res('200 OK'));
+  expect(out.verdict).toBe(Verdict.Skip);
+  expect(out.reason).toBe(SkipReason.NoValidator);
+});
+
+// MAJOR — an invalid Last-Modified is presence but not a validator: like C6/C8, it must Skip rather
+// than be trusted verbatim as the probe's If-Modified-Since value.
+test('is skipped with no-validator when the discovered Last-Modified is not a valid HTTP-date', async () => {
+  const out = await run(res('200 OK', 'Last-Modified: not-a-date'));
   expect(out.verdict).toBe(Verdict.Skip);
   expect(out.reason).toBe(SkipReason.NoValidator);
 });

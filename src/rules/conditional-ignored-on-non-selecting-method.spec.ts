@@ -22,13 +22,34 @@ test('passes when a stable non-precondition-shaped OPTIONS status is unchanged b
 });
 
 test('fails when OPTIONS + If-None-Match: * is answered 304 — the precondition was wrongly applied', async () => {
-  const out = await run(res('204 No Content'), res('204 No Content'), res('304 Not Modified'));
+  const out = await run(
+    res('204 No Content'),
+    res('204 No Content'),
+    res('304 Not Modified'),
+    res('204 No Content'),
+    res('204 No Content'),
+  );
   expect(out.verdict).toBe(Verdict.Fail);
 });
 
 test('fails when OPTIONS + If-None-Match: * is answered 412 — the precondition was wrongly applied', async () => {
-  const out = await run(res('204 No Content'), res('204 No Content'), res('412 Precondition Failed'));
+  const out = await run(
+    res('204 No Content'),
+    res('204 No Content'),
+    res('412 Precondition Failed'),
+    res('204 No Content'),
+    res('204 No Content'),
+  );
   expect(out.verdict).toBe(Verdict.Fail);
+});
+
+// BLOCKER 1 (existence guard) — a resource that stops answering bare OPTIONS with the original
+// baseline status by the time the re-discover round-trip runs must never let the tentative Fail
+// stand: the disqualifying verdict downgrades to Skip(EndpointUnstable).
+test('is skipped as endpoint-unstable when the bare-OPTIONS baseline drifted by re-discover time', async () => {
+  const out = await run(res('204 No Content'), res('204 No Content'), res('304 Not Modified'), res('200 OK'), res('200 OK'));
+  expect(out.verdict).toBe(Verdict.Skip);
+  expect(out.reason).toBe(SkipReason.EndpointUnstable);
 });
 
 test('is skipped as endpoint-unstable when the two bare-OPTIONS baselines disagree', async () => {

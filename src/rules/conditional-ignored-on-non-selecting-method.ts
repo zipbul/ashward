@@ -11,11 +11,15 @@ function isNotPreconditionShaped(status: number): boolean {
 }
 
 /**
- * C13 — §3.3 MUST: a request with a method that does not select/modify a representation (OPTIONS is
- * the only safe example) ignores any conditional header it carries. Custom discover: two bare
- * `OPTIONS` probes must agree on a status that is itself not precondition-shaped (304/412) — that is
- * the existence guard's baseline-agreement check (PLAN §2f). The conditional probe then adds
- * `If-None-Match: *`; the judge (pass-2) Passes iff the status is unchanged.
+ * C13 — §3.3 MUST: a request with a method that does not select/modify a representation (of
+ * ashward's three supported safe methods — GET, HEAD, OPTIONS — OPTIONS is the only example) ignores
+ * any conditional header it carries. Custom discover: two bare `OPTIONS` probes must agree on a
+ * status that is itself not precondition-shaped (304/412) — that is the existence guard's
+ * baseline-agreement check (PLAN §2f). The conditional probe then adds `If-None-Match: *`; the judge
+ * (pass-2) tentatively Passes iff the status is unchanged and tentatively Fails on 304/412 — the
+ * kit's existence-guard RE-DISCOVER (PLAN §2f step 4) then re-sends both bare `OPTIONS` probes and
+ * only lets that Fail stand if the baseline status is re-confirmed; a drift downgrades to
+ * `Skip(EndpointUnstable)`.
  */
 export const conditionalIgnoredOnNonSelectingMethod = defineConditionalRule({
   id: Rule.ConditionalIgnoredOnNonSelectingMethod,

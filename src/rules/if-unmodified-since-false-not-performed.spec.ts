@@ -20,7 +20,20 @@ test('passes when an earlier-than-L If-Unmodified-Since is refused 412 and an eq
 });
 
 test('fails when an earlier-than-L If-Unmodified-Since is performed anyway (2xx)', async () => {
-  const out = await run(res('200 OK', LAST_MODIFIED), res('200 OK'), res('200 OK'));
+  const out = await run(res('200 OK', LAST_MODIFIED), res('200 OK'), res('200 OK'), res('200 OK', LAST_MODIFIED));
+  expect(out.verdict).toBe(Verdict.Fail);
+});
+
+// BLOCKER 3 — the contrast (IUS == L) probe must actually be consulted: a server that answers 412
+// unconditionally (ignoring If-Unmodified-Since's value entirely) must not false-Pass just because
+// the earlier-than-L probe happened to land on 412.
+test('fails when the server answers 412 unconditionally, ignoring If-Unmodified-Since entirely', async () => {
+  const out = await run(
+    res('200 OK', LAST_MODIFIED),
+    res('412 Precondition Failed'),
+    res('412 Precondition Failed'),
+    res('200 OK', LAST_MODIFIED),
+  );
   expect(out.verdict).toBe(Verdict.Fail);
 });
 

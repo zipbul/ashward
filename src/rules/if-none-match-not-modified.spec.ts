@@ -26,8 +26,31 @@ test('a fully correct server (304 on the real ETag, 200 on a non-matching one) p
 });
 
 test('200 on the real matching ETag fails — the precondition was ignored', async () => {
-  const out = await run(res('200 OK', 'ETag: "v1"'), res('200 OK'), res('200 OK'));
+  const out = await run(res('200 OK', 'ETag: "v1"'), res('200 OK'), res('200 OK'), res('200 OK', 'ETag: "v1"'));
   expect(out.verdict).toBe(Verdict.Fail);
+});
+
+// BLOCKER 3 — the contrast (non-matching-tag) probe must actually be consulted: a server that
+// answers 304 unconditionally (ignoring If-None-Match's value entirely) must not false-Pass just
+// because the matching-tag probe happened to land on 304.
+test('fails when the server answers 304 unconditionally, ignoring the tag value entirely', async () => {
+  const out = await run(
+    res('200 OK', 'ETag: "v1"'),
+    res('304 Not Modified'),
+    res('304 Not Modified'),
+    res('200 OK', 'ETag: "v1"'),
+  );
+  expect(out.verdict).toBe(Verdict.Fail);
+});
+
+// BLOCKER 1 — the dynamic-drift reproducer: the discovered ETag was "v1", but by the time the
+// re-discover round-trip runs the resource has moved on to "v2" — the tentative Fail (probe 0 landed
+// on 200, since "v1" no longer matches the NOW-current representation) must never stand on a baseline
+// that has already gone stale; it downgrades to Skip(EndpointUnstable), never a false Fail.
+test('is skipped as endpoint-unstable when the resource changed underneath the probe (dynamic drift)', async () => {
+  const out = await run(res('200 OK', 'ETag: "v1"'), res('200 OK'), res('200 OK'), res('200 OK', 'ETag: "v2"'));
+  expect(out.verdict).toBe(Verdict.Skip);
+  expect(out.reason).toBe(SkipReason.EndpointUnstable);
 });
 
 test('is skipped with no-validator when the discovered representation carries no ETag', async () => {

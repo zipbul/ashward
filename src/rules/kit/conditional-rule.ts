@@ -7,7 +7,6 @@ import type { ProbeResult } from '../../transport/tcp/interfaces';
 
 import { InconclusiveReason, Rule, SkipReason, Verdict } from '../../core/contract/enums';
 import { decodeBody } from '../../http/decode/body';
-import { CR, LF } from '../../http/decode/constants';
 import { singleFieldValue } from '../../http/decode/fields';
 import { parseResponseHead } from '../../http/decode/head-parse';
 import { craftRequest } from '../../http/encode/request';
@@ -15,7 +14,8 @@ import { TerminationCause } from '../../transport/tcp/enums';
 import { authorityFor } from './craft-probe';
 
 /** ashward never mutates the target it probes (PLAN §0): a conditional-request probe can only ever
- *  be one of the three safe methods, so an unsafe-method probe is unrepresentable at the type level. */
+ *  be one of ashward's three supported safe methods — GET, HEAD, OPTIONS (TRACE is out of scope,
+ *  PLAN §8) — so an unsafe-method probe is unrepresentable at the type level. */
 type SafeMethod = 'GET' | 'HEAD' | 'OPTIONS';
 
 /** What one conditional probe asks: the safe method (defaults GET) plus the request headers it
@@ -39,8 +39,8 @@ interface ConditionalExchange {
 }
 
 /** A rule's tentative decision over the discovered baseline(s) and the conditional exchange(s). Only
- *  `Fail`/`Warn` are "disqualifying" — the kit gates those behind a stability re-confirmation (PLAN
- *  §2f step 4) before letting them stand; `Pass`/`Skip`/`Inconclusive` are returned as-is. */
+ *  `Fail`/`Warn` are "disqualifying" — the kit gates those behind a stability RE-DISCOVER (PLAN §2f
+ *  step 4) before letting them stand; `Pass`/`Skip`/`Inconclusive` are returned as-is. */
 interface ConditionalJudgment {
   readonly verdict: Verdict;
   readonly reason?: ClauseReason;
@@ -52,29 +52,29 @@ interface ConditionalRuleSpec {
   readonly id: Rule;
   readonly normative: readonly NormativeRef[];
   readonly tags?: Taxonomy;
-  /** Which stability guard re-confirms a disqualifying verdict (PLAN §2f):
-   *  - `'validator'` (C1, C3-C12): the rule's own `gate`/`judge` read the validator header(s) off
-   *    `discovered`/`probed` directly (via `headerOf`) — `guard` only selects which pre-`gate`
-   *    baseline check applies (none, for validator) and documents the rule's shape.
+  /** Which stability guard re-confirms a disqualifying verdict (PLAN §2f step 4 — a fresh RE-
+   *  DISCOVER round-trip, never the already-fetched exchanges alone):
+   *  - `'validator'` (C1, C3-C12): the rule's own `gate`/`judge` read the validator header(s) named in
+   *    `validatorHeaders` off `discovered`/`probed` directly (via `headerOf`); the kit re-sends
+   *    `discoverProbes` and Skips(EndpointUnstable) unless the fresh baseline's status AND every
+   *    named validator header are byte-identical to the original discover.
    *  - `'existence'` (C2, C13, C14): the discover probes (≥2, sent here as `discoverProbes`) must
-   *    agree on `expectedBaselineStatus` before `gate`/`build` run at all. */
+   *    agree on `expectedBaselineStatus` before `gate`/`build` run at all, AND the kit re-sends them
+   *    after a disqualifying judgment to confirm the SAME status still holds (drift → Skip). */
   readonly guard: ConditionalGuard;
-  /** The discover probe(s) sent before `gate`/`build` run. Default: one safe `GET target.path`. The
+  /** The discover probe(s) sent before `gate`/`build` run, and again (verbatim) as the RE-DISCOVER
+   *  round-trip before a disqualifying `Fail`/`Warn` stands. Default: one safe `GET target.path`. The
    *  existence guard's rules (C2/C13/C14) supply ≥2 probes here so the "×2 baseline" agreement is
    *  itself part of discovery, per PLAN §2f/§5. */
   readonly discoverProbes?: readonly ConditionalProbeSpec[];
-  /** Validator-guard rules may record the response header name(s) their `gate`/`judge` key off, for
-   *  documentation; the kit itself no longer reads this (see `guard`'s doc). */
+  /** Validator-guard rules record the response header name(s) their `gate`/`judge` key off — the kit
+   *  reads these to drive the RE-DISCOVER drift comparison (see `guard`'s doc). Required (may be
+   *  empty) when `guard: 'validator'`. */
   readonly validatorHeaders?: readonly string[];
   /** Existence-guard only: the baseline status predicate every discover exchange must agree on —
    *  e.g. "is 200" (C2), "is not 304/412" (C13), "is not 2xx/304/412" (C14). Required when
    *  `guard: 'existence'`. */
   readonly expectedBaselineStatus?: (status: number) => boolean;
-  /** An extra stability check beyond the guard's default, consulted only when a tentative `Fail`/
-   *  `Warn` from `judge` has already survived the `hasServerError` check — over the SAME `discovered`/
-   *  `probed` exchanges the judge saw (never a fresh round-trip). Returning `false` downgrades the
-   *  disqualifying verdict to `Skip(EndpointUnstable)`. */
-  readonly extraStabilityCheck?: (discovered: readonly ConditionalExchange[], probed: readonly ConditionalExchange[]) => boolean;
   /** Whether the discovered baseline(s) qualify the rule to proceed at all — return a `SkipReason`
    *  to bail out immediately (e.g. `NoValidator`, `NotApplicable`), or `null` to proceed to `build`. */
   gate(discovered: readonly ConditionalExchange[]): SkipReason | null;
@@ -88,8 +88,8 @@ interface ConditionalRuleSpec {
 /** The single value of `name` on `exchange`'s head, or `null` when `exchange` is undefined, the
  *  header is absent, or it was repeated — the same collapsing `singleFieldValue` already applies,
  *  lifted to tolerate a possibly-missing `discovered[n]` under `noUncheckedIndexedAccess`. Every
- *  rule's `gate`/`build`/`extraStabilityCheck` reads a discovered header through this, never a
- *  hand-rolled `discovered[0]?.head ?? {...}` fallback. */
+ *  rule's `gate`/`build`/`judge` reads a discovered header through this, never a hand-rolled
+ *  `discovered[0]?.head ?? {...}` fallback. */
 function headerOf(exchange: ConditionalExchange | undefined, name: string): string | null {
   return exchange === undefined ? null : singleFieldValue(exchange.head, name);
 }
@@ -132,7 +132,7 @@ async function sendBatch(context: HttpRuleContext, specs: readonly ConditionalPr
       return { requests, probed, outcome: { ok: false, reason, index } };
     }
     const { content, complete } = decodeBody(result.response, head, result.termination);
-    exchanges.push({ status: head.statusLine.statusCode, head, content: stripLeadingEmptyLine(content), complete });
+    exchanges.push({ status: head.statusLine.statusCode, head, content, complete });
   }
   return { requests, probed, outcome: { ok: true, exchanges } };
 }
@@ -163,21 +163,6 @@ function inconclusiveFrom(spec: ConditionalRuleSpec, batch: Batch, outcome: Extr
   };
 }
 
-/** RFC 9112 §2.2: a recipient MAY ignore at least one empty line (CRLF, or bare LF) that precedes
- *  what it reads as the next message on the connection — here, a close-delimited (no Content-Length,
- *  no Transfer-Encoding) body that is a single leading blank line is that tolerated empty line, not
- *  real content, so it never counts toward a rule's own "the response carried content" judgment
- *  (e.g. C12's `not-modified-no-content`). Strips at most one; a genuine body never opens on it. */
-function stripLeadingEmptyLine(content: Uint8Array): Uint8Array {
-  if (content.length >= 2 && content[0] === CR && content[1] === LF) {
-    return content.subarray(2);
-  }
-  if (content.length >= 1 && content[0] === LF) {
-    return content.subarray(1);
-  }
-  return content;
-}
-
 function hasServerError(exchanges: readonly ConditionalExchange[]): boolean {
   return exchanges.some(exchange => exchange.status >= 500 && exchange.status <= 599);
 }
@@ -194,15 +179,33 @@ function existenceStable(expected: (status: number) => boolean, exchanges: reado
   return expected(first.status) && rest.every(exchange => exchange.status === first.status);
 }
 
+/** Validator-guard RE-DISCOVER agreement: the fresh baseline's status is identical to the original
+ *  discover, AND every named validator header carries the identical value on both — a drift in
+ *  either (e.g. the resource moved on to a new `ETag`) means the judge's tentative Fail/Warn was
+ *  read off a baseline that no longer holds. */
+function validatorStable(
+  names: readonly string[],
+  before: ConditionalExchange | undefined,
+  after: ConditionalExchange | undefined,
+): boolean {
+  if (before === undefined || after === undefined || before.status !== after.status) {
+    return false;
+  }
+  return names.every(name => headerOf(before, name) === headerOf(after, name));
+}
+
 /**
  * Build a discover-then-conditional rule (PLAN §2f): discover the baseline(s), gate on whether the
  * rule applies at all, build the conditional probe(s) from the discovered baseline, and judge. A
  * `Pass`/`Skip`/`Inconclusive` tentative judgment is returned as-is. A disqualifying `Fail`/`Warn`
- * tentative judgment stands unless the exchanges already in hand — the discover baseline(s) and the
- * conditional probe(s), never an extra live round-trip spent re-querying the origin — show a 5xx
- * anywhere in the sequence, in which case it downgrades to `Skip(EndpointUnstable)` (the guard never
- * itself produces a Fail or Warn). The existence guard's baseline-agreement check (`discoverProbes`
- * agreeing on `expectedBaselineStatus`) still runs before `gate`/`build`, per PLAN §2f/§5.
+ * tentative judgment stands only once TWO checks clear, per PLAN §2f step 4:
+ *   1. no exchange already in hand (discover + conditional probes) shows a 5xx;
+ *   2. a fresh RE-DISCOVER round-trip — `discoverProbes` sent again, a real live probe, never reread
+ *      from the exchanges already in hand — confirms the guard's baseline is unchanged: the SAME
+ *      status (and, for the validator guard, the SAME named validator header values). Either check
+ *      failing downgrades to `Skip(EndpointUnstable)` — the guard never itself produces a Fail or
+ *      Warn. The existence guard's baseline-agreement check (`discoverProbes` agreeing on
+ *      `expectedBaselineStatus`) still runs before `gate`/`build`, per PLAN §2f/§5.
  */
 export function defineConditionalRule(spec: ConditionalRuleSpec): RuleDef<HttpRuleContext> {
   return {
@@ -260,14 +263,31 @@ export function defineConditionalRule(spec: ConditionalRuleSpec): RuleDef<HttpRu
         return settled;
       }
 
-      // A disqualifying verdict: it stands unless the exchanges already fetched (never a fresh
-      // round-trip) show a 5xx anywhere — the guard's own agreement check on the discover
-      // baseline(s) already ran, above, before `gate`/`build`.
+      // A disqualifying verdict: first, the exchanges already fetched must show no 5xx anywhere.
       if (hasServerError(discovered) || hasServerError(probed)) {
         return { ruleId: spec.id, verdict: Verdict.Skip, reason: SkipReason.EndpointUnstable, ...finalEvidence };
       }
-      if (spec.extraStabilityCheck !== undefined && !spec.extraStabilityCheck(discovered, probed)) {
-        return { ruleId: spec.id, verdict: Verdict.Skip, reason: SkipReason.EndpointUnstable, ...finalEvidence };
+
+      // Second — PLAN §2f step 4 — a fresh RE-DISCOVER round-trip: re-send the SAME discover probe(s)
+      // live and confirm the guard's baseline still holds before letting the disqualifying verdict
+      // stand. A transport failure on the re-discover itself is Inconclusive, same as any other batch.
+      const reconfirmBatch = await sendBatch(context, discoverSpecs);
+      if (!reconfirmBatch.outcome.ok) {
+        return inconclusiveFrom(spec, reconfirmBatch, reconfirmBatch.outcome);
+      }
+      const reconfirmed = reconfirmBatch.outcome.exchanges;
+      const reconfirmEvidence = withEvidence(lastEvidence(reconfirmBatch));
+      if (hasServerError(reconfirmed)) {
+        return { ruleId: spec.id, verdict: Verdict.Skip, reason: SkipReason.EndpointUnstable, ...reconfirmEvidence };
+      }
+
+      const stable =
+        spec.guard === 'existence'
+          ? existenceStable(spec.expectedBaselineStatus ?? (() => true), reconfirmed) &&
+            reconfirmed[0]?.status === discovered[0]?.status
+          : validatorStable(spec.validatorHeaders ?? [], discovered[0], reconfirmed[0]);
+      if (!stable) {
+        return { ruleId: spec.id, verdict: Verdict.Skip, reason: SkipReason.EndpointUnstable, ...reconfirmEvidence };
       }
       return settled;
     },

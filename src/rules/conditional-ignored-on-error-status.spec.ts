@@ -22,18 +22,39 @@ test('passes when a stable error status is unchanged by If-None-Match: *', async
 });
 
 test('fails when a precondition-shaped 2xx is elicited on a resource stably answering an error status', async () => {
-  const out = await run(res('404 Not Found'), res('404 Not Found'), res('200 OK'));
+  const out = await run(res('404 Not Found'), res('404 Not Found'), res('200 OK'), res('404 Not Found'), res('404 Not Found'));
   expect(out.verdict).toBe(Verdict.Fail);
 });
 
 test('fails when a precondition-shaped 304 is elicited on a resource stably answering an error status', async () => {
-  const out = await run(res('404 Not Found'), res('404 Not Found'), res('304 Not Modified'));
+  const out = await run(
+    res('404 Not Found'),
+    res('404 Not Found'),
+    res('304 Not Modified'),
+    res('404 Not Found'),
+    res('404 Not Found'),
+  );
   expect(out.verdict).toBe(Verdict.Fail);
 });
 
 test('fails when a precondition-shaped 412 is elicited on a resource stably answering an error status', async () => {
-  const out = await run(res('404 Not Found'), res('404 Not Found'), res('412 Precondition Failed'));
+  const out = await run(
+    res('404 Not Found'),
+    res('404 Not Found'),
+    res('412 Precondition Failed'),
+    res('404 Not Found'),
+    res('404 Not Found'),
+  );
   expect(out.verdict).toBe(Verdict.Fail);
+});
+
+// BLOCKER 1 (existence guard, C14) — a resource that stops answering the fixed nonexistent path with
+// the original stable error status by the time the re-discover round-trip runs must never let the
+// tentative Fail stand: the disqualifying verdict downgrades to Skip(EndpointUnstable).
+test('is skipped as endpoint-unstable when the error-status baseline drifted by re-discover time', async () => {
+  const out = await run(res('404 Not Found'), res('404 Not Found'), res('200 OK'), res('410 Gone'), res('410 Gone'));
+  expect(out.verdict).toBe(Verdict.Skip);
+  expect(out.reason).toBe(SkipReason.EndpointUnstable);
 });
 
 test('is skipped as endpoint-unstable when the two error-status baselines disagree', async () => {

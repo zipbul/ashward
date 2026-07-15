@@ -20,7 +20,7 @@ test('passes when a never-matching If-None-Match combined with If-Modified-Since
 });
 
 test('fails when the combined probe answers 304 — If-Modified-Since was evaluated despite If-None-Match', async () => {
-  const out = await run(res('200 OK', VALIDATORS), res('304 Not Modified'));
+  const out = await run(res('200 OK', VALIDATORS), res('304 Not Modified'), res('200 OK', VALIDATORS));
   expect(out.verdict).toBe(Verdict.Fail);
 });
 

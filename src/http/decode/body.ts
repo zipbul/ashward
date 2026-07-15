@@ -135,6 +135,21 @@ function concat(chunks: Uint8Array[], tail?: Uint8Array): Uint8Array {
   return out;
 }
 
+/** RFC 9112 §2.2: a recipient MAY ignore at least one empty line (CRLF, or bare LF) that precedes
+ *  what it reads as the next message on the connection. That tolerance is a close-delimited-framing
+ *  artifact ONLY — it never applies to a Content-Length- or chunked-framed body, whose bytes are
+ *  real content by definition of the framing itself (RFC 9112 §6.3). Strips at most one; a genuine
+ *  close-delimited body never opens on it. */
+function stripLeadingEmptyLine(content: Uint8Array): Uint8Array {
+  if (content.length >= 2 && content[0] === CR && content[1] === LF) {
+    return content.subarray(2);
+  }
+  if (content.length >= 1 && content[0] === LF) {
+    return content.subarray(1);
+  }
+  return content;
+}
+
 export type DecodedBody = DecodedBodyShape;
 
 /**
@@ -177,5 +192,5 @@ export function decodeBody(raw: Uint8Array, head: ResponseHead, termination?: Te
   }
 
   const complete = termination === undefined || termination === TerminationCause.Fin;
-  return { content: raw.subarray(bodyOffset), complete };
+  return { content: stripLeadingEmptyLine(raw.subarray(bodyOffset)), complete };
 }

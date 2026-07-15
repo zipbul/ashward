@@ -20,7 +20,7 @@ test('passes when If-Match: * combined with an earlier-than-L If-Unmodified-Sinc
 });
 
 test('fails when the combined probe answers 412 — If-Unmodified-Since was evaluated despite If-Match', async () => {
-  const out = await run(res('200 OK', LAST_MODIFIED), res('412 Precondition Failed'));
+  const out = await run(res('200 OK', LAST_MODIFIED), res('412 Precondition Failed'), res('200 OK', LAST_MODIFIED));
   expect(out.verdict).toBe(Verdict.Fail);
 });
 

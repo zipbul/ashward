@@ -20,8 +20,16 @@ test('passes when a stable present-200 baseline elicits 304 on If-None-Match: *'
 });
 
 test('fails when the resource stays 200 despite If-None-Match: * and a stable present baseline', async () => {
-  const out = await run(res('200 OK'), res('200 OK'), res('200 OK'));
+  const out = await run(res('200 OK'), res('200 OK'), res('200 OK'), res('200 OK'), res('200 OK'));
   expect(out.verdict).toBe(Verdict.Fail);
+});
+
+// BLOCKER 1 (existence guard, C2) — the resource that was present-200 at discover time must still be
+// present-200 by re-discover time before the tentative Fail stands; drift → Skip(EndpointUnstable).
+test('is skipped as endpoint-unstable when the present-200 baseline drifted by re-discover time', async () => {
+  const out = await run(res('200 OK'), res('200 OK'), res('200 OK'), res('404 Not Found'), res('404 Not Found'));
+  expect(out.verdict).toBe(Verdict.Skip);
+  expect(out.reason).toBe(SkipReason.EndpointUnstable);
 });
 
 test('is skipped as endpoint-unstable when the two present-200 baselines disagree', async () => {

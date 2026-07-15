@@ -13,7 +13,8 @@ import { clause, differential, rfc } from './build';
  * zipbul/conditional-request STANDARDS digest's own numbering (snapshot 2026-07-13) — a human
  * breadcrumb only, never the key. `§5.2.4` and `§5.3.7` each carry two limbs at different (or the
  * same) BCP14 level and are modeled as two clause ids (see PLAN §0.1); `§6.1.2` splits its MUST into
- * a tested field set (C11) and an untestable `Date` sub-limb, per PLAN §5.
+ * a tested field set (C11) and a `Date` sub-limb — also tested by C11, guarded so an origin that
+ * never sends `Date` on the discovered 200 (§6.6.1 clockless) is never judged on its absence.
  */
 enum ConditionalClauseId {
   // §1 — received-validator parsing (§8.8.3 · §5.6.7 · §13.1)
@@ -83,9 +84,12 @@ enum ConditionalClauseId {
   PreconditionFailedSemantics = 'precondition-failed-semantics', // §6.2.1 Unmarked
 
   // §6.3 — failure response levels (§13.1.1 · §13.1.2 · §13.1.4)
+  // §6.3.3 (If-None-Match failure-response symmetry) is NOT its own clause id — the STANDARD itself
+  // states it is "§5.2.4와 동일 규칙" (the same rule as §5.2.4), so it is a restatement, not an
+  // independent requirement; it is folded into `IfNoneMatchFalseResponse`/
+  // `IfNoneMatchFalseResponseOtherMethod` rather than double-counted (PLAN §12 round-5).
   IfMatchMay412 = 'if-match-may-412', // §6.3.1 MAY
   IfUnmodifiedSinceMay412 = 'if-unmodified-since-may-412', // §6.3.2 MAY
-  IfNoneMatchFailureSymmetry = 'if-none-match-failure-symmetry', // §6.3.3 MUST
   StateChangingAlreadyApplied = 'state-changing-already-applied', // §6.3.4 MAY
 }
 
@@ -391,12 +395,6 @@ const CLAUSES: readonly Clause[] = [
     'a server may respond 412 to signal a failed If-Unmodified-Since precondition',
   ),
   clause(
-    ConditionalClauseId.IfNoneMatchFailureSymmetry, // §6.3.3
-    ReqLevel.Must,
-    [rfc(RFC9110, '13.1.2')],
-    'on an If-None-Match false evaluation, GET/HEAD responds 304 and every other method responds 412',
-  ),
-  clause(
     ConditionalClauseId.StateChangingAlreadyApplied, // §6.3.4
     ReqLevel.May,
     [rfc(RFC9110, '13.1.1'), rfc(RFC9110, '13.1.4')],
@@ -612,9 +610,7 @@ const DISPOSITIONS: readonly Disposition[] = [
   { clause: ConditionalClauseId.NotModifiedRequiredHeaders, rules: [differential(Rule.NotModifiedRequiredHeaders)] },
   {
     clause: ConditionalClauseId.NotModifiedDateHeader,
-    rules: [],
-    untestable:
-      'Whether the origin has a live clock at 304-generation time is unobservable (§6.6.1) — a 200 carrying Date does not prove a 304 generated moments later would too; kept out of C11’s MUST rule.',
+    rules: [differential(Rule.NotModifiedRequiredHeaders)],
   },
   {
     clause: ConditionalClauseId.NotModifiedNoExtraMetadata,
@@ -639,12 +635,6 @@ const DISPOSITIONS: readonly Disposition[] = [
     clause: ConditionalClauseId.IfUnmodifiedSinceMay412,
     rules: [],
     untestable: 'A MAY (permission) can never be a sound blackbox failure; the underlying MUST-NOT-perform is tested by C6.',
-  },
-  {
-    clause: ConditionalClauseId.IfNoneMatchFailureSymmetry,
-    rules: [],
-    untestable:
-      'The GET/HEAD→304 limb IS C1/C2; the other-method→412 limb requires an unsafe-method probe ashward never sends (PLAN §0/§8).',
   },
   {
     clause: ConditionalClauseId.StateChangingAlreadyApplied,
@@ -704,7 +694,6 @@ const SNAPSHOT: readonly string[] = [
   'precondition-failed-semantics',
   'if-match-may-412',
   'if-unmodified-since-may-412',
-  'if-none-match-failure-symmetry',
   'state-changing-already-applied',
 ];
 

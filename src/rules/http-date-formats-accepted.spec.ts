@@ -26,13 +26,35 @@ test('passes when the same instant in all three HTTP-date formats elicits 304', 
 });
 
 test('fails when the RFC 850 form of the same instant is rejected with 200', async () => {
-  const out = await run(res('200 OK', LAST_MODIFIED), res('304 Not Modified'), res('200 OK'), res('304 Not Modified'));
+  const out = await run(
+    res('200 OK', LAST_MODIFIED),
+    res('304 Not Modified'),
+    res('200 OK'),
+    res('304 Not Modified'),
+    res('200 OK', LAST_MODIFIED),
+  );
   expect(out.verdict).toBe(Verdict.Fail);
 });
 
 test('fails when the asctime form of the same instant is rejected with 200', async () => {
-  const out = await run(res('200 OK', LAST_MODIFIED), res('304 Not Modified'), res('304 Not Modified'), res('200 OK'));
+  const out = await run(
+    res('200 OK', LAST_MODIFIED),
+    res('304 Not Modified'),
+    res('304 Not Modified'),
+    res('200 OK'),
+    res('200 OK', LAST_MODIFIED),
+  );
   expect(out.verdict).toBe(Verdict.Fail);
+});
+
+// MAJOR — RFC 9110 §5.6.7's rfc850-date 2-digit year + the 50-year disambiguation rule means an old
+// enough instant is NOT representable in RFC 850 form as the same instant to a CORRECT recipient (the
+// SUT applies the rule against ITS clock, "now"). C8 must Skip(NotApplicable) rather than false-Fail
+// a correct server that (rightly) resolves the 2-digit year to a different century than intended.
+test('is skipped as not-applicable when the discovered instant does not round-trip through rfc850 under the 50-year rule', async () => {
+  const out = await run(res('200 OK', 'Last-Modified: Wed, 01 Jan 1975 00:00:00 GMT'), res('304 Not Modified'));
+  expect(out.verdict).toBe(Verdict.Skip);
+  expect(out.reason).toBe(SkipReason.NotApplicable);
 });
 
 test('is skipped as not-applicable when even the IMF-fixdate baseline fails to elicit 304', async () => {

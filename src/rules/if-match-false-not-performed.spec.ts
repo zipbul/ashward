@@ -20,7 +20,20 @@ test('passes when a never-matching If-Match is refused 412 while If-Match: * is 
 });
 
 test('fails when a never-matching If-Match is performed anyway (2xx)', async () => {
-  const out = await run(res('200 OK', 'ETag: "v1"'), res('200 OK'), res('200 OK'));
+  const out = await run(res('200 OK', 'ETag: "v1"'), res('200 OK'), res('200 OK'), res('200 OK', 'ETag: "v1"'));
+  expect(out.verdict).toBe(Verdict.Fail);
+});
+
+// BLOCKER 3 — the contrast (If-Match: *) probe must actually be consulted: a server that answers
+// 412 unconditionally (ignoring If-Match's value entirely, never performing even when it legitimately
+// should) must not false-Pass just because the never-matching probe happened to land on 412.
+test('fails when the server answers 412 unconditionally, ignoring If-Match entirely', async () => {
+  const out = await run(
+    res('200 OK', 'ETag: "v1"'),
+    res('412 Precondition Failed'),
+    res('412 Precondition Failed'),
+    res('200 OK', 'ETag: "v1"'),
+  );
   expect(out.verdict).toBe(Verdict.Fail);
 });
 

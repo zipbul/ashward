@@ -19,7 +19,7 @@ test('passes when a weak form of the discovered strong ETag is correctly refused
 });
 
 test('fails when a weak form of the discovered strong ETag is performed anyway (2xx)', async () => {
-  const out = await run(res('200 OK', 'ETag: "v1"'), res('200 OK'));
+  const out = await run(res('200 OK', 'ETag: "v1"'), res('200 OK'), res('200 OK', 'ETag: "v1"'));
   expect(out.verdict).toBe(Verdict.Fail);
 });
 
