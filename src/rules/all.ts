@@ -18,17 +18,31 @@ import { accessControlExposeHeadersWildcardWithCredentials } from './access-cont
 import { accessControlMaxAgeDeltaSeconds } from './access-control-max-age-delta-seconds';
 import { clTeConflict } from './cl-te-conflict';
 import { compressedEtagWeakOrDistinct } from './compressed-etag-weak-or-distinct';
+import { conditionalIgnoredOnErrorStatus } from './conditional-ignored-on-error-status';
+import { conditionalIgnoredOnNonSelectingMethod } from './conditional-ignored-on-non-selecting-method';
 import { contentEncodingNoIdentityToken } from './content-encoding-no-identity-token';
 import { deflateZlibWrapped } from './deflate-zlib-wrapped';
 import { duplicateContentLength } from './duplicate-content-length';
 import { gzipFormatValid } from './gzip-format-valid';
+import { httpDateFormatsAccepted } from './http-date-formats-accepted';
+import { ifMatchFalseNotPerformed } from './if-match-false-not-performed';
+import { ifMatchStrongComparison } from './if-match-strong-comparison';
+import { ifModifiedSinceNotModified } from './if-modified-since-not-modified';
+import { ifNoneMatchNotModified } from './if-none-match-not-modified';
+import { ifNoneMatchStarNotModified } from './if-none-match-star-not-modified';
+import { ifNoneMatchWeakComparison } from './if-none-match-weak-comparison';
+import { ifUnmodifiedSinceFalseNotPerformed } from './if-unmodified-since-false-not-performed';
 import { invalidUtf8NoHardFail } from './invalid-utf8-no-hard-fail';
 import { locationRedirectNoUserinfo } from './location-redirect-no-userinfo';
 import { malformedPercentNoHardFail } from './malformed-percent-no-hard-fail';
 import { noContentEncodingOnBodilessResponse } from './no-content-encoding-on-bodiless-response';
+import { notModifiedNoContent } from './not-modified-no-content';
+import { notModifiedRequiredHeaders } from './not-modified-required-headers';
 import { nulByteNoHardFail } from './nul-byte-no-hard-fail';
 import { nullOrigin } from './null-origin';
 import { originReflection } from './origin-reflection';
+import { precedenceIfMatchOverIfUnmodifiedSince } from './precedence-if-match-over-if-unmodified-since';
+import { precedenceIfNoneMatchOverIfModifiedSince } from './precedence-if-none-match-over-if-modified-since';
 import { preflightCredentialedGrant } from './preflight-credentialed-grant';
 import { preflightOkStatus } from './preflight-ok-status';
 import { privateNetworkAccessIdNameFormat } from './private-network-access-id-name-format';
@@ -101,6 +115,21 @@ export const ALL_RULES: readonly RuleDef<HttpRuleContext>[] = [
   urlencodedUtf8Replacement,
   urlencodedMalformedPercentPreserved,
   urlencodedEmptySequenceSkipped,
+  // Conditional-request (RFC 9110 §13)
+  ifNoneMatchNotModified,
+  ifNoneMatchStarNotModified,
+  ifNoneMatchWeakComparison,
+  ifMatchFalseNotPerformed,
+  ifMatchStrongComparison,
+  ifUnmodifiedSinceFalseNotPerformed,
+  ifModifiedSinceNotModified,
+  httpDateFormatsAccepted,
+  precedenceIfNoneMatchOverIfModifiedSince,
+  precedenceIfMatchOverIfUnmodifiedSince,
+  notModifiedRequiredHeaders,
+  notModifiedNoContent,
+  conditionalIgnoredOnNonSelectingMethod,
+  conditionalIgnoredOnErrorStatus,
 ];
 
 // Each rule is also exported by name, so a caller can compose an explicit selection.
@@ -122,17 +151,31 @@ export {
   accessControlMaxAgeDeltaSeconds,
   clTeConflict,
   compressedEtagWeakOrDistinct,
+  conditionalIgnoredOnErrorStatus,
+  conditionalIgnoredOnNonSelectingMethod,
   contentEncodingNoIdentityToken,
   deflateZlibWrapped,
   duplicateContentLength,
   gzipFormatValid,
+  httpDateFormatsAccepted,
+  ifMatchFalseNotPerformed,
+  ifMatchStrongComparison,
+  ifModifiedSinceNotModified,
+  ifNoneMatchNotModified,
+  ifNoneMatchStarNotModified,
+  ifNoneMatchWeakComparison,
+  ifUnmodifiedSinceFalseNotPerformed,
   invalidUtf8NoHardFail,
   locationRedirectNoUserinfo,
   malformedPercentNoHardFail,
   noContentEncodingOnBodilessResponse,
+  notModifiedNoContent,
+  notModifiedRequiredHeaders,
   nulByteNoHardFail,
   nullOrigin,
   originReflection,
+  precedenceIfMatchOverIfUnmodifiedSince,
+  precedenceIfNoneMatchOverIfModifiedSince,
   preflightCredentialedGrant,
   preflightOkStatus,
   privateNetworkAccessIdNameFormat,

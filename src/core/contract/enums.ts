@@ -105,4 +105,20 @@ export enum Rule {
   UrlencodedUtf8Replacement = 'urlencoded-utf8-replacement',
   UrlencodedMalformedPercentPreserved = 'urlencoded-malformed-percent-preserved',
   UrlencodedEmptySequenceSkipped = 'urlencoded-empty-sequence-skipped',
+
+  // Conditional-request (RFC 9110 §13) — C1-C14
+  IfNoneMatchNotModified = 'if-none-match-not-modified',
+  IfNoneMatchStarNotModified = 'if-none-match-star-not-modified',
+  IfNoneMatchWeakComparison = 'if-none-match-weak-comparison',
+  IfMatchFalseNotPerformed = 'if-match-false-not-performed',
+  IfMatchStrongComparison = 'if-match-strong-comparison',
+  IfUnmodifiedSinceFalseNotPerformed = 'if-unmodified-since-false-not-performed',
+  IfModifiedSinceNotModified = 'if-modified-since-not-modified',
+  HttpDateFormatsAccepted = 'http-date-formats-accepted',
+  PrecedenceIfNoneMatchOverIfModifiedSince = 'precedence-if-none-match-over-if-modified-since',
+  PrecedenceIfMatchOverIfUnmodifiedSince = 'precedence-if-match-over-if-unmodified-since',
+  NotModifiedRequiredHeaders = 'not-modified-required-headers',
+  NotModifiedNoContent = 'not-modified-no-content',
+  ConditionalIgnoredOnNonSelectingMethod = 'conditional-ignored-on-non-selecting-method',
+  ConditionalIgnoredOnErrorStatus = 'conditional-ignored-on-error-status',
 }

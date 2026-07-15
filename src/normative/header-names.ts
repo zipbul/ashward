@@ -33,3 +33,17 @@ export const CACHE_CONTROL = 'Cache-Control';
 /** HTTP/1.1 message-framing fields (RFC 9112 §6). */
 export const CONTENT_LENGTH = 'Content-Length';
 export const TRANSFER_ENCODING = 'Transfer-Encoding';
+
+/** Conditional-request fields (RFC 9110 §13 · §8.8). `ETag` and `Cache-Control` are declared above
+ *  (compression already cites them); the rest are new for the conditional-request domain. Request
+ *  fields (`If-*`) and response fields (validators + the 304-required-header set) share one list —
+ *  they are never confused because a rule crafts requests and reads responses through distinct code
+ *  paths. */
+export const IF_MATCH = 'If-Match';
+export const IF_NONE_MATCH = 'If-None-Match';
+export const IF_MODIFIED_SINCE = 'If-Modified-Since';
+export const IF_UNMODIFIED_SINCE = 'If-Unmodified-Since';
+export const LAST_MODIFIED = 'Last-Modified';
+export const DATE = 'Date';
+export const EXPIRES = 'Expires';
+export const CONTENT_LOCATION = 'Content-Location';
