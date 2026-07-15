@@ -4,6 +4,7 @@ import type { NormativeRef } from './interfaces';
 import { compressionCatalog } from './catalog/compression';
 import { fetchCatalog } from './catalog/fetch';
 import { rfc9112Catalog } from './catalog/rfc9112';
+import { urlencodedCatalog } from './catalog/urlencoded';
 
 /**
  * The composed standards catalog. Each entry is one standard's self-contained account (clauses,
@@ -11,7 +12,7 @@ import { rfc9112Catalog } from './catalog/rfc9112';
  * shared global enum, table, or snapshot. The composition-level invariants (global id uniqueness,
  * clause↔rule bijection) are checked in catalog.spec.ts.
  */
-const CATALOGS: readonly Catalog[] = [fetchCatalog, rfc9112Catalog, compressionCatalog];
+const CATALOGS: readonly Catalog[] = [fetchCatalog, rfc9112Catalog, compressionCatalog, urlencodedCatalog];
 
 const ALL_CLAUSES: readonly Clause[] = CATALOGS.flatMap(catalog => catalog.clauses);
 const ALL_DISPOSITIONS: readonly Disposition[] = CATALOGS.flatMap(catalog => catalog.dispositions);

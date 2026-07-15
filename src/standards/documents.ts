@@ -106,3 +106,12 @@ export const RFC9659 = {
   title: 'Guidelines for Use of Zstandard Compression for HTTP',
   url: 'https://www.rfc-editor.org/rfc/rfc9659',
 } as const satisfies RfcDocument;
+
+/** URI: Generic Syntax — the generic (non-form) query component query-parser rules test against. */
+export const RFC3986 = {
+  body: StandardsBody.IETF,
+  number: 3986,
+  code: 'RFC 3986',
+  title: 'Uniform Resource Identifier (URI): Generic Syntax',
+  url: 'https://www.rfc-editor.org/rfc/rfc3986',
+} as const satisfies RfcDocument;

@@ -13,9 +13,18 @@ export interface HttpTarget {
   readonly timeoutMs: number;
 }
 
+/** A caller-opted echo contract (query-parser reflection rules): the route at `target.path` echoes
+ *  back an ordered pair list JSON of the query it received, parsed per this declared mode. Optional
+ *  and undefined by default — a reflect rule Skips(EndpointNotReflecting) when absent. */
+export interface ReflectConfig {
+  readonly mode: 'form' | 'uri-generic';
+}
+
 /** What an HTTP-domain rule is given: the target-bound probe and the resolved endpoint, so it can
- *  craft requests aimed at the caller's host/path with the real Host header. */
+ *  craft requests aimed at the caller's host/path with the real Host header. `reflect` is optional
+ *  and caller-opted (undefined by default) — only reflection rules read it. */
 export interface HttpRuleContext {
   readonly probe: ProbeFn;
   readonly target: HttpTarget;
+  readonly reflect?: ReflectConfig;
 }

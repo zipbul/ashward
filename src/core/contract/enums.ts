@@ -90,4 +90,18 @@ export enum Rule {
   DeflateZlibWrapped = 'deflate-zlib-wrapped',
   ZstdWindowWithinHttpCap = 'zstd-window-within-http-cap',
   ZstdReservedBitsZero = 'zstd-reserved-bits-zero',
+
+  // Query-parser (RFC 3986, WHATWG URL) — robustness heuristics (Q1-Q4)
+  MalformedPercentNoHardFail = 'malformed-percent-no-hard-fail',
+  InvalidUtf8NoHardFail = 'invalid-utf8-no-hard-fail',
+  NulByteNoHardFail = 'nul-byte-no-hard-fail',
+  PrototypePollutionNoCrash = 'prototype-pollution-no-crash',
+  // Query-parser — reflection parse-correctness (Q5-Q11)
+  UrlencodedAmpersandOnlySeparator = 'urlencoded-ampersand-only-separator',
+  UrlencodedFirstEqualsSplits = 'urlencoded-first-equals-splits',
+  UrlencodedPlusIsSpace = 'urlencoded-plus-is-space',
+  UriGenericPlusIsLiteral = 'uri-generic-plus-is-literal',
+  UrlencodedUtf8Replacement = 'urlencoded-utf8-replacement',
+  UrlencodedMalformedPercentPreserved = 'urlencoded-malformed-percent-preserved',
+  UrlencodedEmptySequenceSkipped = 'urlencoded-empty-sequence-skipped',
 }

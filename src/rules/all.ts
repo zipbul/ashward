@@ -22,13 +22,24 @@ import { contentEncodingNoIdentityToken } from './content-encoding-no-identity-t
 import { deflateZlibWrapped } from './deflate-zlib-wrapped';
 import { duplicateContentLength } from './duplicate-content-length';
 import { gzipFormatValid } from './gzip-format-valid';
+import { invalidUtf8NoHardFail } from './invalid-utf8-no-hard-fail';
 import { locationRedirectNoUserinfo } from './location-redirect-no-userinfo';
+import { malformedPercentNoHardFail } from './malformed-percent-no-hard-fail';
 import { noContentEncodingOnBodilessResponse } from './no-content-encoding-on-bodiless-response';
+import { nulByteNoHardFail } from './nul-byte-no-hard-fail';
 import { nullOrigin } from './null-origin';
 import { originReflection } from './origin-reflection';
 import { preflightCredentialedGrant } from './preflight-credentialed-grant';
 import { preflightOkStatus } from './preflight-ok-status';
 import { privateNetworkAccessIdNameFormat } from './private-network-access-id-name-format';
+import { prototypePollutionNoCrash } from './prototype-pollution-no-crash';
+import { uriGenericPlusIsLiteral } from './uri-generic-plus-is-literal';
+import { urlencodedAmpersandOnlySeparator } from './urlencoded-ampersand-only-separator';
+import { urlencodedEmptySequenceSkipped } from './urlencoded-empty-sequence-skipped';
+import { urlencodedFirstEqualsSplits } from './urlencoded-first-equals-splits';
+import { urlencodedMalformedPercentPreserved } from './urlencoded-malformed-percent-preserved';
+import { urlencodedPlusIsSpace } from './urlencoded-plus-is-space';
+import { urlencodedUtf8Replacement } from './urlencoded-utf8-replacement';
 import { varyAcceptEncodingOnNegotiated } from './vary-accept-encoding-on-negotiated';
 import { varyOrigin } from './vary-origin';
 import { zstdReservedBitsZero } from './zstd-reserved-bits-zero';
@@ -76,6 +87,18 @@ export const ALL_RULES: readonly RuleDef<HttpRuleContext>[] = [
   deflateZlibWrapped,
   zstdWindowWithinHttpCap,
   zstdReservedBitsZero,
+  // Query-parser (RFC 3986, WHATWG URL)
+  malformedPercentNoHardFail,
+  invalidUtf8NoHardFail,
+  nulByteNoHardFail,
+  prototypePollutionNoCrash,
+  urlencodedAmpersandOnlySeparator,
+  urlencodedFirstEqualsSplits,
+  urlencodedPlusIsSpace,
+  uriGenericPlusIsLiteral,
+  urlencodedUtf8Replacement,
+  urlencodedMalformedPercentPreserved,
+  urlencodedEmptySequenceSkipped,
 ];
 
 // Each rule is also exported by name, so a caller can compose an explicit selection.
@@ -101,13 +124,24 @@ export {
   deflateZlibWrapped,
   duplicateContentLength,
   gzipFormatValid,
+  invalidUtf8NoHardFail,
   locationRedirectNoUserinfo,
+  malformedPercentNoHardFail,
   noContentEncodingOnBodilessResponse,
+  nulByteNoHardFail,
   nullOrigin,
   originReflection,
   preflightCredentialedGrant,
   preflightOkStatus,
   privateNetworkAccessIdNameFormat,
+  prototypePollutionNoCrash,
+  uriGenericPlusIsLiteral,
+  urlencodedAmpersandOnlySeparator,
+  urlencodedEmptySequenceSkipped,
+  urlencodedFirstEqualsSplits,
+  urlencodedMalformedPercentPreserved,
+  urlencodedPlusIsSpace,
+  urlencodedUtf8Replacement,
   varyAcceptEncodingOnNegotiated,
   varyOrigin,
   zstdReservedBitsZero,
