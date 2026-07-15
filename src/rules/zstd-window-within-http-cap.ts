@@ -1,0 +1,43 @@
+import { InconclusiveReason, Rule, SkipReason, Verdict } from '../core/contract/enums';
+import { ACCEPT_ENCODING } from '../normative/header-names';
+import { zstdWindowSize } from '../normative/zstd';
+import { CompressionClauseId } from '../standards/catalog/compression';
+import { refsFor } from './kit/clause-refs';
+import { outermostCoding } from './kit/content-encoding';
+import { defineResponseRule } from './kit/response-rule';
+
+/** RFC 9659 §3: a zstd frame over HTTP must not require a Window_Size exceeding 8 MiB. */
+const HTTP_ZSTD_WINDOW_CAP = 8 * 1024 * 1024;
+
+/**
+ * §5.4 — a `zstd` content-coded response MUST NOT require a decoder window exceeding 8 MiB
+ * (RFC 9659 §3). Judged only when `zstd` is the OUTERMOST (last) `Content-Encoding` token; a body
+ * that does not parse as a zstd frame at all (bad magic) is out of the window rule's scope — a
+ * mislabel is a separate, unshipped format concern (see `zstd-reserved-bits-zero`).
+ */
+export const zstdWindowWithinHttpCap = defineResponseRule({
+  id: Rule.ZstdWindowWithinHttpCap,
+  probes: [{ headers: [{ name: ACCEPT_ENCODING, value: 'zstd' }] }],
+  normative: refsFor(CompressionClauseId.ZstdWindowCap),
+  judge(exchanges) {
+    const [exchange] = exchanges;
+    if (exchange === undefined) {
+      return { verdict: Verdict.Skip, reason: SkipReason.HeaderAbsent };
+    }
+    const outermost = outermostCoding(exchange.head);
+    if (outermost === null) {
+      return { verdict: Verdict.Skip, reason: SkipReason.HeaderAbsent };
+    }
+    if (outermost.toLowerCase() !== 'zstd') {
+      return { verdict: Verdict.Skip, reason: SkipReason.StackedCoding };
+    }
+    if (!exchange.complete) {
+      return { verdict: Verdict.Inconclusive, reason: InconclusiveReason.IncompleteMessage };
+    }
+    const windowSize = zstdWindowSize(exchange.content);
+    if (windowSize === null) {
+      return { verdict: Verdict.Skip, reason: SkipReason.OutOfScope };
+    }
+    return windowSize > HTTP_ZSTD_WINDOW_CAP ? { verdict: Verdict.Fail } : { verdict: Verdict.Pass };
+  },
+});

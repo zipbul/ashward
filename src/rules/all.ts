@@ -17,14 +17,22 @@ import { accessControlExposeHeadersTokenList } from './access-control-expose-hea
 import { accessControlExposeHeadersWildcardWithCredentials } from './access-control-expose-headers-wildcard-with-credentials';
 import { accessControlMaxAgeDeltaSeconds } from './access-control-max-age-delta-seconds';
 import { clTeConflict } from './cl-te-conflict';
+import { compressedEtagWeakOrDistinct } from './compressed-etag-weak-or-distinct';
+import { contentEncodingNoIdentityToken } from './content-encoding-no-identity-token';
+import { deflateZlibWrapped } from './deflate-zlib-wrapped';
 import { duplicateContentLength } from './duplicate-content-length';
+import { gzipFormatValid } from './gzip-format-valid';
 import { locationRedirectNoUserinfo } from './location-redirect-no-userinfo';
+import { noContentEncodingOnBodilessResponse } from './no-content-encoding-on-bodiless-response';
 import { nullOrigin } from './null-origin';
 import { originReflection } from './origin-reflection';
 import { preflightCredentialedGrant } from './preflight-credentialed-grant';
 import { preflightOkStatus } from './preflight-ok-status';
 import { privateNetworkAccessIdNameFormat } from './private-network-access-id-name-format';
+import { varyAcceptEncodingOnNegotiated } from './vary-accept-encoding-on-negotiated';
 import { varyOrigin } from './vary-origin';
+import { zstdReservedBitsZero } from './zstd-reserved-bits-zero';
+import { zstdWindowWithinHttpCap } from './zstd-window-within-http-cap';
 
 /**
  * Every rule the package ships, as one flat registry. WHICH rules to run is the CALLER's choice:
@@ -59,6 +67,15 @@ export const ALL_RULES: readonly RuleDef<HttpRuleContext>[] = [
   privateNetworkAccessIdNameFormat,
   originReflection,
   nullOrigin,
+  // Compression
+  contentEncodingNoIdentityToken,
+  noContentEncodingOnBodilessResponse,
+  varyAcceptEncodingOnNegotiated,
+  compressedEtagWeakOrDistinct,
+  gzipFormatValid,
+  deflateZlibWrapped,
+  zstdWindowWithinHttpCap,
+  zstdReservedBitsZero,
 ];
 
 // Each rule is also exported by name, so a caller can compose an explicit selection.
@@ -79,12 +96,20 @@ export {
   accessControlExposeHeadersWildcardWithCredentials,
   accessControlMaxAgeDeltaSeconds,
   clTeConflict,
+  compressedEtagWeakOrDistinct,
+  contentEncodingNoIdentityToken,
+  deflateZlibWrapped,
   duplicateContentLength,
+  gzipFormatValid,
   locationRedirectNoUserinfo,
+  noContentEncodingOnBodilessResponse,
   nullOrigin,
   originReflection,
   preflightCredentialedGrant,
   preflightOkStatus,
   privateNetworkAccessIdNameFormat,
+  varyAcceptEncodingOnNegotiated,
   varyOrigin,
+  zstdReservedBitsZero,
+  zstdWindowWithinHttpCap,
 };

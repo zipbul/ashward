@@ -80,4 +80,14 @@ export enum Rule {
   // Security heuristics (not STANDARDS MUSTs — §2.2 says reflection passes the CORS check)
   OriginReflection = 'origin-reflection',
   NullOrigin = 'null-origin',
+
+  // Compression (RFC 9110 §8.4/§12.5.5/§8.8, RFC 1950/1952, RFC 8878/9659)
+  ContentEncodingNoIdentityToken = 'content-encoding-no-identity-token',
+  NoContentEncodingOnBodilessResponse = 'no-content-encoding-on-bodiless-response',
+  VaryAcceptEncodingOnNegotiated = 'vary-accept-encoding-on-negotiated',
+  CompressedEtagWeakOrDistinct = 'compressed-etag-weak-or-distinct',
+  GzipFormatValid = 'gzip-format-valid',
+  DeflateZlibWrapped = 'deflate-zlib-wrapped',
+  ZstdWindowWithinHttpCap = 'zstd-window-within-http-cap',
+  ZstdReservedBitsZero = 'zstd-reserved-bits-zero',
 }

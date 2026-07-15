@@ -1,0 +1,100 @@
+import { test, expect } from 'bun:test';
+
+import type { HttpTarget, ProbeFn } from '../http/context';
+import type { ProbeResult } from '../transport/tcp/interfaces';
+
+import { InconclusiveReason, SkipReason, Verdict } from '../core/contract/enums';
+import { buildSkippableFrame, buildZstdFrame } from '../testkit/zstd-frame';
+import { TerminationCause } from '../transport/tcp/enums';
+import { zstdWindowWithinHttpCap } from './zstd-window-within-http-cap';
+
+const TARGET: HttpTarget = { host: 'origin.test', port: 80, path: '/', timeoutMs: 500 };
+
+function exchange(
+  headFields: string,
+  body: readonly number[],
+  opts?: { contentLength?: number; complete?: boolean },
+): ProbeResult {
+  const bodyBytes = Uint8Array.from(body);
+  const cl = opts?.contentLength ?? bodyBytes.length;
+  const headStr = `HTTP/1.1 200 OK\r\n${headFields}\r\nContent-Length: ${cl}\r\n\r\n`;
+  const headBytes = new TextEncoder().encode(headStr);
+  const response = new Uint8Array(headBytes.length + bodyBytes.length);
+  response.set(headBytes, 0);
+  response.set(bodyBytes, headBytes.length);
+  return { response, termination: opts?.complete === false ? TerminationCause.Rst : TerminationCause.Fin };
+}
+
+const probeOnce =
+  (result: ProbeResult): ProbeFn =>
+  async () =>
+    Promise.resolve(result);
+
+const run = async (result: ProbeResult) => zstdWindowWithinHttpCap.run({ probe: probeOnce(result), target: TARGET });
+const CE = 'Content-Encoding: zstd';
+
+test('passes an exact 8 MiB window (the cap)', async () => {
+  // windowBase = 2^(10+13) = 8388608 (exponent 13, mantissa 0)
+  const frame = buildZstdFrame({ singleSegment: false, windowExponent: 13, windowMantissa: 0 });
+  const out = await run(exchange(CE, frame));
+  expect(out.verdict).toBe(Verdict.Pass);
+});
+
+test('fails the next window step above 8 MiB (9 MiB)', async () => {
+  // windowBase 8388608 + windowAdd (8388608/8)*1 = 9437184
+  const frame = buildZstdFrame({ singleSegment: false, windowExponent: 13, windowMantissa: 1 });
+  const out = await run(exchange(CE, frame));
+  expect(out.verdict).toBe(Verdict.Fail);
+});
+
+test('fails a Single_Segment frame whose Frame_Content_Size is 8 388 609 (one byte over)', async () => {
+  const frame = buildZstdFrame({ singleSegment: true, frameContentSizeBytes: 4, frameContentSize: 8_388_609 });
+  const out = await run(exchange(CE, frame));
+  expect(out.verdict).toBe(Verdict.Fail);
+});
+
+test('passes a Single_Segment frame whose Frame_Content_Size is exactly 8 MiB', async () => {
+  const frame = buildZstdFrame({ singleSegment: true, frameContentSizeBytes: 4, frameContentSize: 8_388_608 });
+  const out = await run(exchange(CE, frame));
+  expect(out.verdict).toBe(Verdict.Pass);
+});
+
+test('passes a 128 KiB window with a non-zero Dictionary_ID field (exercises field order)', async () => {
+  // windowBase = 2^(10+7) = 131072 (128 KiB), exponent 7, mantissa 0
+  const frame = buildZstdFrame({
+    singleSegment: false,
+    windowExponent: 7,
+    windowMantissa: 0,
+    dictionaryIdBytes: 1,
+    dictionaryId: 5,
+  });
+  const out = await run(exchange(CE, frame));
+  expect(out.verdict).toBe(Verdict.Pass);
+});
+
+test('passes a 128 KiB window preceded by a leading skippable frame', async () => {
+  const skippable = buildSkippableFrame(0x50, 4);
+  const frame = buildZstdFrame({ singleSegment: false, windowExponent: 7, windowMantissa: 0 });
+  const out = await run(exchange(CE, [...skippable, ...frame]));
+  expect(out.verdict).toBe(Verdict.Pass);
+});
+
+test('is skipped as out-of-scope on a non-zstd magic number', async () => {
+  const out = await run(exchange(CE, [0x00, 0x00, 0x00, 0x00, 0x00]));
+  expect(out.verdict).toBe(Verdict.Skip);
+  expect(out.reason).toBe(SkipReason.OutOfScope);
+});
+
+test('is inconclusive with incomplete-message on a truncated frame', async () => {
+  const frame = buildZstdFrame({ singleSegment: false, windowExponent: 13, windowMantissa: 0 });
+  const out = await run(exchange(CE, frame, { contentLength: 100, complete: false }));
+  expect(out.verdict).toBe(Verdict.Inconclusive);
+  expect(out.reason).toBe(InconclusiveReason.IncompleteMessage);
+});
+
+test('is skipped as header-absent when Content-Encoding is missing', async () => {
+  const frame = buildZstdFrame({ singleSegment: false, windowExponent: 13, windowMantissa: 0 });
+  const out = await run(exchange('', frame));
+  expect(out.verdict).toBe(Verdict.Skip);
+  expect(out.reason).toBe(SkipReason.HeaderAbsent);
+});

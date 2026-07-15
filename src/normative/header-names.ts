@@ -22,3 +22,10 @@ export const ACCESS_CONTROL_REQUEST_PRIVATE_NETWORK = 'Access-Control-Request-Pr
 export const ACCESS_CONTROL_ALLOW_PRIVATE_NETWORK = 'Access-Control-Allow-Private-Network';
 export const PRIVATE_NETWORK_ACCESS_ID = 'Private-Network-Access-ID';
 export const PRIVATE_NETWORK_ACCESS_NAME = 'Private-Network-Access-Name';
+
+/** Compression (RFC 9110 §8.4/§8.8/§12.5.5). `Accept-Encoding` is a request header; the rest are
+ *  response headers a compression rule reads or negotiates on. */
+export const CONTENT_ENCODING = 'Content-Encoding';
+export const ACCEPT_ENCODING = 'Accept-Encoding';
+export const ETAG = 'ETag';
+export const CACHE_CONTROL = 'Cache-Control';
