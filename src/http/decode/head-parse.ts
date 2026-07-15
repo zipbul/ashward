@@ -3,8 +3,15 @@ import type { HeaderField, ResponseHead } from './interfaces';
 import { CR, LF } from './constants';
 import { parseStatusLine } from './head-lex';
 
+interface HeadLines {
+  readonly lines: string[];
+  /** Index just past the head-terminating empty line's LF, or undefined when the response
+   *  ends before that terminator arrives (an incomplete head). */
+  readonly bodyOffset: number | undefined;
+}
+
 /** Split the head into raw lines, stopping at the first empty line (the head/body boundary). */
-function headLines(response: Uint8Array): string[] {
+function headLines(response: Uint8Array): HeadLines {
   const lines: string[] = [];
   let start = 0;
 
@@ -19,14 +26,14 @@ function headLines(response: Uint8Array): string[] {
       lineEnd -= 1;
     }
     if (lineEnd === start) {
-      break; // empty line: head ends here
+      return { lines, bodyOffset: end < response.length ? end + 1 : undefined };
     }
 
     lines.push(new TextDecoder().decode(response.subarray(start, lineEnd)));
     start = end + 1;
   }
 
-  return lines;
+  return { lines, bodyOffset: undefined };
 }
 
 /** Strip only the optional whitespace RFC 9112 §5.1 allows around a field value — SP (0x20) and
@@ -57,8 +64,9 @@ export function parseResponseHead(response: Uint8Array): ResponseHead | null {
     return null;
   }
 
+  const { lines, bodyOffset } = headLines(response);
   const fields: HeaderField[] = [];
-  for (const line of headLines(response).slice(1)) {
+  for (const line of lines.slice(1)) {
     const colon = line.indexOf(':');
     if (colon <= 0) {
       continue; // no field name, or an obs-fold continuation — not a field line
@@ -66,5 +74,5 @@ export function parseResponseHead(response: Uint8Array): ResponseHead | null {
     fields.push({ name: line.slice(0, colon), value: trimOws(line.slice(colon + 1)) });
   }
 
-  return { statusLine, fields };
+  return bodyOffset === undefined ? { statusLine, fields } : { statusLine, fields, bodyOffset };
 }
