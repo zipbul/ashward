@@ -184,7 +184,7 @@ function strongEtagValidatorGate(discovered: readonly ConditionalExchange[]): Sk
 }
 
 /** The Last-Modified-validator gate shared by every rule whose only prerequisite is a discovered,
- *  parseable `Last-Modified` (C6, C7, C10): Skip(NoValidator) unless the discovered baseline is a
+ *  parseable `Last-Modified` (C6, C7, C8, C10): Skip(NoValidator) unless the discovered baseline is a
  *  200 that sent a `Last-Modified` value `parseHttpDate` can actually parse — a malformed value
  *  never qualifies as a validator, matching §1.3/§1.4's own parse requirement. */
 function lastModifiedValidatorGate(discovered: readonly ConditionalExchange[]): SkipReason | null {
