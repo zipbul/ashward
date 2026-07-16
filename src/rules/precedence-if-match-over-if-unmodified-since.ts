@@ -1,15 +1,10 @@
 import { Rule, SkipReason, Verdict } from '../core/contract/enums';
 import { IF_MATCH, IF_UNMODIFIED_SINCE, LAST_MODIFIED } from '../normative/header-names';
-import { addDays, formatImfFixdate } from '../normative/http-date';
+import { addDays, formatImfFixdate, parseHttpDate } from '../normative/http-date';
 import { WILDCARD } from '../normative/literals';
 import { ConditionalClauseId } from '../standards/catalog/conditional-request';
 import { refsFor } from './kit/clause-refs';
 import { defineConditionalRule, headerOf } from './kit/conditional-rule';
-
-function parsedTime(value: string): number | null {
-  const time = new Date(value).getTime();
-  return Number.isNaN(time) ? null : time;
-}
 
 /**
  * C10 — §4.3 MUST: `If-Unmodified-Since` is ignored when `If-Match` is present. The probe pairs
@@ -28,14 +23,14 @@ export const precedenceIfMatchOverIfUnmodifiedSince = defineConditionalRule({
       return SkipReason.NoValidator;
     }
     const lastModified = headerOf(baseline, LAST_MODIFIED);
-    if (lastModified === null || parsedTime(lastModified) === null) {
+    if (lastModified === null || parseHttpDate(lastModified) === null) {
       return SkipReason.NoValidator;
     }
     return null;
   },
   build(discovered) {
     const lastModified = headerOf(discovered[0], LAST_MODIFIED);
-    const time = lastModified === null ? null : parsedTime(lastModified);
+    const time = lastModified === null ? null : parseHttpDate(lastModified);
     const earlier = formatImfFixdate(addDays(new Date(time ?? 0), -1));
     return [
       {

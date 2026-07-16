@@ -75,4 +75,14 @@ export function appendRawQuery(path: string, rawQuery: string): string {
   return `${path}${path.includes('?') ? '&' : '?'}${rawQuery}`;
 }
 
+/** Strip any existing `?query` off a request-target path, keeping only the path portion. A rule that
+ *  must control the WHOLE query it sends (e.g. a reflect probe judged against an oracle computed
+ *  from ONLY its own rawQuery) cannot safely `appendRawQuery` onto a path that already carries a
+ *  query: a conformant peer would echo the pre-existing pairs too, which the oracle never accounts
+ *  for — a false Fail against a spec-conformant endpoint. */
+export function stripQuery(path: string): string {
+  const qIndex = path.indexOf('?');
+  return qIndex === -1 ? path : path.slice(0, qIndex);
+}
+
 export type { ProbeSpec, PreflightProbe, SimpleProbe };

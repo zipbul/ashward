@@ -125,6 +125,23 @@ test('close-delimited body defaults to complete when no termination is given', (
   expect(result.complete).toBe(true);
 });
 
+// MAJOR 3 — RFC 9112 §2.2's "a recipient MAY ignore at least one empty line preceding the next
+// message" is a close-delimited-FRAMING tolerance for what comes BEFORE a message on the wire, not
+// a license to delete body octets that already belong to a message the head-parser found. A
+// close-delimited body whose real first bytes happen to be CRLF (or a bare LF) is real content and
+// must survive decoding intact.
+test('close-delimited body starting with CRLF is not stripped — the leading CRLF is real content', () => {
+  const result = decode('HTTP/1.1 200 OK\r\n\r\n\r\nhello');
+  expect(text(result.content)).toBe('\r\nhello');
+  expect(result.complete).toBe(true);
+});
+
+test('close-delimited body starting with a bare LF is not stripped — the leading LF is real content', () => {
+  const result = decode('HTTP/1.1 200 OK\r\n\r\n\nhello');
+  expect(text(result.content)).toBe('\nhello');
+  expect(result.complete).toBe(true);
+});
+
 // RFC 9112 §6.3: repeated Content-Length is only safe when every value agrees.
 test('duplicate identical Content-Length fields are used', () => {
   const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5\r\nContent-Length: 5\r\n\r\nhello');
@@ -134,5 +151,25 @@ test('duplicate identical Content-Length fields are used', () => {
 
 test('conflicting Content-Length fields make the message ambiguous, not close-delimited', () => {
   const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5\r\nContent-Length: 10\r\n\r\nhello-world-extra');
+  expect(result.complete).toBe(false);
+});
+
+// MAJOR 4 — RFC 9112 §6.3 lets Content-Length repeat either as separate field LINES or as one
+// comma-coalesced list within a single field value; both must agree the same way. A comma-list
+// value like "5, 5" used to fail the `^\d+$` check outright (treated as absent -> close-delimited,
+// i.e. over-reading past the true content boundary), and a genuinely conflicting list like "5, 10"
+// was silently absent instead of ambiguous.
+test('a comma-coalesced Content-Length list of identical members is accepted — reads exactly the declared length, not the whole close-delimited tail', () => {
+  // If "5, 5" were (wrongly) treated as absent, this would fall through to close-delimited
+  // framing and read the WHOLE remaining buffer ('hello WORLD', 11 bytes) instead of exactly the
+  // 5 bytes Content-Length actually declares — a longer body than 5 bytes is what tells apart a
+  // correct "value: 5" parse from a coincidental absent/close-delimited pass.
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5, 5\r\n\r\nhello WORLD');
+  expect(text(result.content)).toBe('hello');
+  expect(result.complete).toBe(true);
+});
+
+test('a comma-coalesced Content-Length list with differing members is ambiguous, not absent', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5, 10\r\n\r\nhello-world-extra');
   expect(result.complete).toBe(false);
 });

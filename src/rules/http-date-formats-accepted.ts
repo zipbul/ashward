@@ -1,33 +1,29 @@
 import { Rule, SkipReason, Verdict } from '../core/contract/enums';
 import { IF_MODIFIED_SINCE, LAST_MODIFIED } from '../normative/header-names';
-import { formatAsctime, formatImfFixdate, formatRfc850 } from '../normative/http-date';
+import { formatAsctime, formatImfFixdate, formatRfc850, parseHttpDate, resolveRfc850Year } from '../normative/http-date';
 import { ConditionalClauseId } from '../standards/catalog/conditional-request';
 import { refsFor } from './kit/clause-refs';
 import { defineConditionalRule, headerOf } from './kit/conditional-rule';
 
-function parsedTime(value: string): number | null {
-  const time = new Date(value).getTime();
-  return Number.isNaN(time) ? null : time;
-}
-
-/** RFC 9110 §5.6.7's own 50-year disambiguation rule, applied against `nowYear`: the recipient
- *  resolves a 2-digit rfc850 year to whichever candidate century keeps it from reading as more than
- *  50 years in `nowYear`'s future — the SAME rule a correct SUT applies against ITS OWN clock when it
- *  parses the RFC 850 probe C8 sends. */
-function rfc850ResolvedYear(twoDigitYear: number, nowYear: number): number {
-  const century = Math.floor(nowYear / 100) * 100;
-  const naive = century + twoDigitYear;
-  return naive > nowYear + 50 ? naive - 100 : naive;
-}
-
-/** True iff `instant`'s full year round-trips through the rfc850 2-digit-year + 50-year rule at
- *  `now` — i.e. a correct recipient parsing the RFC 850 form C8 sends would resolve it back to the
- *  SAME year `instant` actually carries. An instant old enough to fall outside that window is not
- *  soundly probeable in RFC 850 form: a correct server legitimately resolving to a different century
- *  must never read as "rejected the format" (§1.4's own moving-boundary rule, PLAN §11/§13). */
+/** True iff `instant`'s full year round-trips through RFC 9110 §5.6.7's rfc850 2-digit-year +
+ *  50-year rule at `now` (via `resolveRfc850Year`, which compares the FULL candidate instant to
+ *  `now + 50 years`, never year-only arithmetic) — i.e. a correct recipient parsing the RFC 850
+ *  form C8 sends would resolve it back to the SAME year `instant` actually carries. An instant old
+ *  enough to fall outside that window is not soundly probeable in RFC 850 form: a correct server
+ *  legitimately resolving to a different century must never read as "rejected the format" (§1.4's
+ *  own moving-boundary rule, PLAN §11/§13). */
 function rfc850RoundTrips(instant: Date, now: Date): boolean {
   const twoDigitYear = ((instant.getUTCFullYear() % 100) + 100) % 100;
-  return rfc850ResolvedYear(twoDigitYear, now.getUTCFullYear()) === instant.getUTCFullYear();
+  const resolvedYear = resolveRfc850Year(
+    twoDigitYear,
+    instant.getUTCMonth(),
+    instant.getUTCDate(),
+    instant.getUTCHours(),
+    instant.getUTCMinutes(),
+    instant.getUTCSeconds(),
+    now,
+  );
+  return resolvedYear === instant.getUTCFullYear();
 }
 
 /**
@@ -54,7 +50,7 @@ export const httpDateFormatsAccepted = defineConditionalRule({
     if (lastModified === null) {
       return SkipReason.NoValidator;
     }
-    const time = parsedTime(lastModified);
+    const time = parseHttpDate(lastModified);
     if (time === null) {
       return SkipReason.NoValidator;
     }
@@ -62,7 +58,7 @@ export const httpDateFormatsAccepted = defineConditionalRule({
   },
   build(discovered) {
     const lastModified = headerOf(discovered[0], LAST_MODIFIED);
-    const time = lastModified === null ? null : parsedTime(lastModified);
+    const time = lastModified === null ? null : parseHttpDate(lastModified);
     const instant = new Date(time ?? 0);
     return [
       { headers: [{ name: IF_MODIFIED_SINCE, value: formatImfFixdate(instant) }] },

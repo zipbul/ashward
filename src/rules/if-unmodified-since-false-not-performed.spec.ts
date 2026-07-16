@@ -48,3 +48,12 @@ test('is skipped with no-validator when the discovered Last-Modified is not a va
   expect(out.verdict).toBe(Verdict.Skip);
   expect(out.reason).toBe(SkipReason.NoValidator);
 });
+
+// MAJOR 5 — `new Date(value)` also accepts ISO 8601 and countless other non-HTTP-date shapes, so a
+// loose parser would wrongly trust this as a validator and build a probe from it. Only a STRICT
+// RFC 9110 §5.6.7 HTTP-date grammar counts.
+test('is skipped with no-validator when the discovered Last-Modified is an ISO 8601 timestamp, not an HTTP-date', async () => {
+  const out = await run(res('200 OK', 'Last-Modified: 2026-01-01T00:00:00Z'));
+  expect(out.verdict).toBe(Verdict.Skip);
+  expect(out.reason).toBe(SkipReason.NoValidator);
+});

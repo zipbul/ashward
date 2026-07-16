@@ -8,7 +8,7 @@ import { parseResponseHead } from '../../http/decode/head-parse';
 import { craftRequest } from '../../http/encode/request';
 import { isOkStatus } from '../../normative/ok-status';
 import { TerminationCause } from '../../transport/tcp/enums';
-import { appendRawQuery, authorityFor } from './craft-probe';
+import { appendRawQuery, authorityFor, stripQuery } from './craft-probe';
 
 const bodyDecoder = new TextDecoder('utf-8', { fatal: false });
 
@@ -58,7 +58,11 @@ export function defineReflectRule(spec: ReflectRuleSpec): RuleDef<HttpRuleContex
         return { ruleId: spec.id, verdict: Verdict.Skip, reason: SkipReason.EndpointNotReflecting };
       }
 
-      const reflectPath = context.reflect.path ?? context.target.path;
+      // A reflect probe must control the WHOLE query it sends — `expectedPairs` is the oracle
+      // computed from ONLY `spec.rawQuery`, so any pre-existing query already on the reflect path
+      // (e.g. `context.target.path` carrying a `?search` from `resolveTarget`) is stripped first;
+      // otherwise a conformant reflector would echo those pairs too and never match the oracle.
+      const reflectPath = stripQuery(context.reflect.path ?? context.target.path);
       const host = authorityFor(context.target);
       let request: Uint8Array;
       try {

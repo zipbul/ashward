@@ -1,6 +1,6 @@
 import { test, expect } from 'bun:test';
 
-import type { HttpTarget } from '../../http/context';
+import type { HttpTarget, ProbeFn } from '../../http/context';
 
 import { Rule, SkipReason, Verdict } from '../../core/contract/enums';
 import { RFC9110 } from '../../standards/documents';
@@ -23,6 +23,35 @@ const rule = defineReflectRule({
 const head = (status: string, fields: string): string => `HTTP/1.1 ${status}\r\n${fields}\r\n\r\n`;
 const jsonBody = (pairs: readonly (readonly [string, string])[]): string => JSON.stringify(pairs);
 const countQuestionMarks = (line: string): number => line.split('?').length - 1;
+
+/** Split one `a=1` (or bare `a`) form-urlencoded pair on its FIRST `=`. */
+function splitPair(pair: string): readonly [string, string] {
+  const eq = pair.indexOf('=');
+  return eq === -1 ? [pair, ''] : [pair.slice(0, eq), pair.slice(eq + 1)];
+}
+
+/** The query pairs a genuinely conformant reflector would echo for `requestTarget` — parsed from
+ *  whatever request-target it actually received, never a canned answer. */
+function queryPairsOf(requestTarget: string): (readonly [string, string])[] {
+  const qIndex = requestTarget.indexOf('?');
+  if (qIndex === -1) {
+    return [];
+  }
+  const queryString = requestTarget.slice(qIndex + 1);
+  return queryString.length === 0 ? [] : queryString.split('&').map(splitPair);
+}
+
+/** A ProbeFn behaving like a genuinely conformant reflector: it echoes back exactly the query it
+ *  actually received, as pair-list JSON — so, unlike a canned response, it would catch a
+ *  regression where a pre-existing query leaks back onto the wire (the old `&`-join bug). */
+function conformantReflectorProbe(): ProbeFn {
+  return async bytes => {
+    const requestLine = new TextDecoder().decode(bytes).split('\r\n')[0] ?? '';
+    const requestTarget = requestLine.split(' ')[1] ?? '';
+    const raw = `${head('200 OK', 'Content-Type: application/json')}${jsonBody(queryPairsOf(requestTarget))}`;
+    return Promise.resolve({ response: new TextEncoder().encode(raw), termination: TerminationCause.Fin });
+  };
+}
 
 test('Skips as endpoint-not-reflecting when reflect is undefined', async () => {
   const out = await rule.run({ probe: replay(head('200 OK', '')), target: TARGET });
@@ -83,12 +112,24 @@ const adversarialBodies: readonly [string, unknown][] = [
   ['a deeply nested array-of-array-of-array', [[['a'], '1']]],
 ];
 
-test('does not double the query when the target path already carries one — joins with & instead of a second ?', async () => {
+test("strips a pre-existing query on the reflect path — sends only the rule's own query, never doubled", async () => {
   const targetWithQuery: HttpTarget = { ...TARGET, path: '/echo?existing=1' };
   const { probe, sentLine } = capturingProbe(`${head('200 OK', 'Content-Type: application/json')}${jsonBody([['a', '1']])}`);
   const out = await rule.run({ probe, target: targetWithQuery, reflect: { mode: 'form' } });
-  expect(sentLine()).toBe('GET /echo?existing=1&a=1 HTTP/1.1');
+  expect(sentLine()).toBe('GET /echo?a=1 HTTP/1.1');
   expect(countQuestionMarks(sentLine())).toBe(1);
+  expect(out.verdict).toBe(Verdict.Pass);
+});
+
+/** The proof that stripping actually prevents a false Fail: a genuinely conformant reflector (one
+ *  that echoes back exactly the query it received, parsed into pairs) must never be judged against
+ *  pairs it was never even sent. Unlike a canned response, this probe derives its answer from the
+ *  actual request-target it was given — so it would catch a regression where the pre-existing query
+ *  leaks back onto the wire (the old `&`-join bug), which a canned "always answer [['a','1']]" mock
+ *  cannot. */
+test('a reflect path with a pre-existing query does not false-Fail a conformant reflector', async () => {
+  const targetWithQuery: HttpTarget = { ...TARGET, path: '/echo?existing=1&other=2' };
+  const out = await rule.run({ probe: conformantReflectorProbe(), target: targetWithQuery, reflect: { mode: 'form' } });
   expect(out.verdict).toBe(Verdict.Pass);
 });
 

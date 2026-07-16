@@ -7,7 +7,11 @@ import { replay } from '../testkit/replay';
 import { notModifiedNoContent as rule } from './not-modified-no-content';
 
 const TARGET: HttpTarget = { host: 'origin.test', port: 80, path: '/', timeoutMs: 500 };
-const res = (status: string, fields = '', body = ''): string => `HTTP/1.1 ${status}\r\n${fields}\r\n\r\n${body}`;
+// NOTE: when `fields` is empty there is no header line to terminate before the blank line that
+// ends the header section — unconditionally appending `\r\n\r\n` after an empty `fields` would
+// inject a SPURIOUS extra CRLF that lands in the decoded body (a fixture bug, not a protocol one).
+const res = (status: string, fields = '', body = ''): string =>
+  `HTTP/1.1 ${status}\r\n${fields}${fields.length > 0 ? '\r\n' : ''}\r\n${body}`;
 const run = async (...responses: string[]) => rule.run({ probe: replay(...responses), target: TARGET });
 const ETAG = 'ETag: "v1"';
 
@@ -40,6 +44,15 @@ test('warns on a Content-Length-framed 304 body that is exactly a lone CRLF', as
 
 test('warns on a Content-Length-framed 304 body that is a single byte', async () => {
   const out = await run(res('200 OK', ETAG), res('304 Not Modified', 'Content-Length: 1', '\n'), res('200 OK', ETAG));
+  expect(out.verdict).toBe(Verdict.Warn);
+});
+
+// MAJOR 3 — a close-delimited 304 body (no Content-Length, no Transfer-Encoding) is real content
+// too. RFC 9112 §2.2's "tolerate one leading empty line" applies to what precedes the NEXT message
+// on the wire, never to bytes decodeBody already attributed to THIS message's body — deleting a
+// lone leading CRLF there used to hide a genuine "304 carries content" violation as a false Pass.
+test('warns on a close-delimited 304 body that is exactly a lone CRLF', async () => {
+  const out = await run(res('200 OK', ETAG), res('304 Not Modified', '', '\r\n'), res('200 OK', ETAG));
   expect(out.verdict).toBe(Verdict.Warn);
 });
 

@@ -1,17 +1,12 @@
 import { Rule, SkipReason, Verdict } from '../core/contract/enums';
 import { IF_MODIFIED_SINCE, LAST_MODIFIED } from '../normative/header-names';
-import { formatImfFixdate } from '../normative/http-date';
+import { formatImfFixdate, parseHttpDate } from '../normative/http-date';
 import { ConditionalClauseId } from '../standards/catalog/conditional-request';
 import { refsFor } from './kit/clause-refs';
 import { defineConditionalRule, headerOf } from './kit/conditional-rule';
 
 /** Epoch — unambiguously far enough in the past that any real `Last-Modified` is later than it. */
 const FAR_PAST = new Date(0);
-
-function parsedTime(value: string): number | null {
-  const time = new Date(value).getTime();
-  return Number.isNaN(time) ? null : time;
-}
 
 /** True for a 2xx (success) status. */
 function isSuccess(status: number): boolean {
@@ -42,7 +37,7 @@ export const ifModifiedSinceNotModified = defineConditionalRule({
       return SkipReason.NoValidator;
     }
     const lastModified = headerOf(baseline, LAST_MODIFIED);
-    if (lastModified === null || parsedTime(lastModified) === null) {
+    if (lastModified === null || parseHttpDate(lastModified) === null) {
       return SkipReason.NoValidator;
     }
     return null;

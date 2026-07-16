@@ -33,9 +33,12 @@ type ContentLengthResult =
   | { readonly kind: 'value'; readonly length: number };
 
 /**
- * RFC 9112 §6.3: every Content-Length field value must be a non-negative integer, and repeated
- * fields must all agree — disagreement makes the message length ambiguous, which MUST NOT be
- * silently resolved by reading to EOF. A single invalid value is simply treated as absent.
+ * RFC 9112 §6.3: Content-Length may repeat either as separate field LINES or as one
+ * comma-coalesced list within a single field value (e.g. `Content-Length: 5, 5`, RFC 9110 §5.3) —
+ * both are the same "repeated field" case and must agree the same way. Every member of every
+ * value must be a non-negative integer, and every member across every value must agree —
+ * disagreement makes the message length ambiguous, which MUST NOT be silently resolved by reading
+ * to EOF. A single invalid (non-numeric) member is simply treated as absent, same as before.
  */
 function contentLength(head: ResponseHead): ContentLengthResult {
   const values = fieldValues(head, CONTENT_LENGTH);
@@ -45,14 +48,16 @@ function contentLength(head: ResponseHead): ContentLengthResult {
 
   const lengths = new Set<number>();
   for (const value of values) {
-    if (!/^\d+$/.test(value)) {
-      return { kind: 'absent' };
+    for (const member of value.split(',').map(part => part.trim())) {
+      if (!/^\d+$/.test(member)) {
+        return { kind: 'absent' };
+      }
+      const length = Number(member);
+      if (!Number.isSafeInteger(length)) {
+        return { kind: 'absent' };
+      }
+      lengths.add(length);
     }
-    const length = Number(value);
-    if (!Number.isSafeInteger(length)) {
-      return { kind: 'absent' };
-    }
-    lengths.add(length);
   }
 
   return lengths.size === 1 ? { kind: 'value', length: [...lengths][0]! } : { kind: 'ambiguous' };
@@ -135,21 +140,6 @@ function concat(chunks: Uint8Array[], tail?: Uint8Array): Uint8Array {
   return out;
 }
 
-/** RFC 9112 §2.2: a recipient MAY ignore at least one empty line (CRLF, or bare LF) that precedes
- *  what it reads as the next message on the connection. That tolerance is a close-delimited-framing
- *  artifact ONLY — it never applies to a Content-Length- or chunked-framed body, whose bytes are
- *  real content by definition of the framing itself (RFC 9112 §6.3). Strips at most one; a genuine
- *  close-delimited body never opens on it. */
-function stripLeadingEmptyLine(content: Uint8Array): Uint8Array {
-  if (content.length >= 2 && content[0] === CR && content[1] === LF) {
-    return content.subarray(2);
-  }
-  if (content.length >= 1 && content[0] === LF) {
-    return content.subarray(1);
-  }
-  return content;
-}
-
 export type DecodedBody = DecodedBodyShape;
 
 /**
@@ -192,5 +182,5 @@ export function decodeBody(raw: Uint8Array, head: ResponseHead, termination?: Te
   }
 
   const complete = termination === undefined || termination === TerminationCause.Fin;
-  return { content: stripLeadingEmptyLine(raw.subarray(bodyOffset)), complete };
+  return { content: raw.subarray(bodyOffset), complete };
 }

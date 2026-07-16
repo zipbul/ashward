@@ -1,14 +1,9 @@
 import { Rule, SkipReason, Verdict } from '../core/contract/enums';
 import { IF_UNMODIFIED_SINCE, LAST_MODIFIED } from '../normative/header-names';
-import { addDays, formatImfFixdate } from '../normative/http-date';
+import { addDays, formatImfFixdate, parseHttpDate } from '../normative/http-date';
 import { ConditionalClauseId } from '../standards/catalog/conditional-request';
 import { refsFor } from './kit/clause-refs';
 import { defineConditionalRule, headerOf } from './kit/conditional-rule';
-
-function parsedTime(value: string): number | null {
-  const time = new Date(value).getTime();
-  return Number.isNaN(time) ? null : time;
-}
 
 /** True for a 2xx (success) status. */
 function isSuccess(status: number): boolean {
@@ -36,14 +31,14 @@ export const ifUnmodifiedSinceFalseNotPerformed = defineConditionalRule({
       return SkipReason.NoValidator;
     }
     const lastModified = headerOf(baseline, LAST_MODIFIED);
-    if (lastModified === null || parsedTime(lastModified) === null) {
+    if (lastModified === null || parseHttpDate(lastModified) === null) {
       return SkipReason.NoValidator;
     }
     return null;
   },
   build(discovered) {
     const lastModified = headerOf(discovered[0], LAST_MODIFIED);
-    const time = lastModified === null ? null : parsedTime(lastModified);
+    const time = lastModified === null ? null : parseHttpDate(lastModified);
     const instant = new Date(time ?? 0);
     const earlier = formatImfFixdate(addDays(instant, -1));
     const equal = formatImfFixdate(instant);

@@ -79,3 +79,40 @@ test('is skipped with no-validator when the discovered representation carries no
   expect(out.verdict).toBe(Verdict.Skip);
   expect(out.reason).toBe(SkipReason.NoValidator);
 });
+
+// BLOCKER 2 — the kit's validator-guard re-discover used to key ONLY on ETag: a required header
+// (other than ETag) dropping out from under the probe between discover and re-discover left a
+// tentative Fail standing falsely, because the metadata that actually made it "missing" on the 304
+// was never itself re-confirmed. The FULL §6.1.2 set the Fail depends on must be re-confirmed.
+test('a required header present on the discovered 200 but gone by re-discover time downgrades a tentative Fail to Skip(EndpointUnstable), never lets it stand', async () => {
+  const out = await run(
+    res('200 OK', FULL_METADATA), // discover: ETag/Cache-Control/Vary/Expires/Content-Location all present
+    res('304 Not Modified', 'ETag: "v1"'), // 304 drops everything but ETag -> tentative Fail
+    // re-discover: Vary is gone even though ETag (the only header the old guard re-checked) is
+    // unchanged — the endpoint drifted underneath the probe, so the Fail must not stand.
+    res(
+      '200 OK',
+      'ETag: "v1"\r\nCache-Control: max-age=60\r\nExpires: Sun, 06 Nov 1994 08:49:37 GMT\r\nContent-Location: /canonical',
+    ),
+  );
+  expect(out.verdict).toBe(Verdict.Skip);
+  expect(out.reason).toBe(SkipReason.EndpointUnstable);
+});
+
+// The narrower half of the same bug: a repeated required header's re-discover comparison must not
+// collapse to "both null, therefore stable" — `singleFieldValue` returns null for ANY repeated
+// field, so a genuinely drifted repeated Cache-Control (different values, still repeated on both
+// sides) would read as unchanged under the old ETag-only, singleFieldValue-based re-discover.
+test('a repeated required header whose values drift between discover and re-discover downgrades a tentative Fail to Skip, not "stable" merely because both sides collapse to null', async () => {
+  const discoverRepeated = `${FULL_METADATA}\r\nCache-Control: no-cache`;
+  const reconfirmDrifted =
+    'ETag: "v1"\r\nCache-Control: max-age=60\r\nCache-Control: no-store\r\nVary: Accept-Encoding\r\n' +
+    'Expires: Sun, 06 Nov 1994 08:49:37 GMT\r\nContent-Location: /canonical';
+  const out = await run(
+    res('200 OK', discoverRepeated), // Cache-Control repeated: [max-age=60, no-cache]
+    res('304 Not Modified', 'ETag: "v1"'), // drops everything but ETag -> tentative Fail
+    res('200 OK', reconfirmDrifted), // Cache-Control repeated: [max-age=60, no-store] -- drifted
+  );
+  expect(out.verdict).toBe(Verdict.Skip);
+  expect(out.reason).toBe(SkipReason.EndpointUnstable);
+});

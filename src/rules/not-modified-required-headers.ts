@@ -25,14 +25,17 @@ function wasSent(exchange: ConditionalExchange | undefined, name: string): boole
  * C11 — §6.1.2 MUST: a 304 generated for a request that elicits one carries each of
  * `ETag`/`Cache-Control`/`Vary`/`Expires`/`Content-Location`/`Date` that the discovered 200 sent.
  * Couldn't elicit a 304 at all → Skip(NotApplicable), not a false Fail on an unrelated non-304
- * outcome. Before this Fail stands, the kit's validator-guard RE-DISCOVER (keyed on `ETag`) confirms
- * the resource identity itself hasn't drifted underneath the probe.
+ * outcome. Before this Fail stands, the kit's validator-guard RE-DISCOVER confirms the FULL
+ * §6.1.2 set this Fail depends on — every header in `REQUIRED_HEADERS`, not just `ETag` — hasn't
+ * drifted underneath the probe; a field the judge relied on dropping out between discover and
+ * re-discover downgrades to Skip(EndpointUnstable) rather than letting the Fail stand on stale
+ * metadata.
  */
 export const notModifiedRequiredHeaders = defineConditionalRule({
   id: Rule.NotModifiedRequiredHeaders,
   normative: refsFor(ConditionalClauseId.NotModifiedRequiredHeaders),
   guard: 'validator',
-  validatorHeaders: [ETAG],
+  validatorHeaders: REQUIRED_HEADERS,
   gate(discovered) {
     const [baseline] = discovered;
     if (baseline?.status !== 200) {

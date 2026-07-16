@@ -7,7 +7,7 @@ import type { ProbeResult } from '../../transport/tcp/interfaces';
 
 import { InconclusiveReason, Rule, SkipReason, Verdict } from '../../core/contract/enums';
 import { decodeBody } from '../../http/decode/body';
-import { singleFieldValue } from '../../http/decode/fields';
+import { fieldValues, singleFieldValue } from '../../http/decode/fields';
 import { parseResponseHead } from '../../http/decode/head-parse';
 import { craftRequest } from '../../http/encode/request';
 import { TerminationCause } from '../../transport/tcp/enums';
@@ -179,10 +179,23 @@ function existenceStable(expected: (status: number) => boolean, exchanges: reado
   return expected(first.status) && rest.every(exchange => exchange.status === first.status);
 }
 
+/** Whether every value sent under `name` (in wire order) is identical between `before` and `after` —
+ *  REPEATED-field-aware, unlike a `headerOf`/`singleFieldValue`-based comparison, which collapses
+ *  ANY repeated field to `null` on both sides: two exchanges that repeat the same field name with
+ *  genuinely different values would then compare `null === null` and read as "unchanged" even
+ *  though the field actually drifted. */
+function sameFieldValues(before: ConditionalExchange, after: ConditionalExchange, name: string): boolean {
+  const beforeValues = fieldValues(before.head, name);
+  const afterValues = fieldValues(after.head, name);
+  return beforeValues.length === afterValues.length && beforeValues.every((value, index) => value === afterValues[index]);
+}
+
 /** Validator-guard RE-DISCOVER agreement: the fresh baseline's status is identical to the original
- *  discover, AND every named validator header carries the identical value on both — a drift in
- *  either (e.g. the resource moved on to a new `ETag`) means the judge's tentative Fail/Warn was
- *  read off a baseline that no longer holds. */
+ *  discover, AND every named validator header carries the identical value(s) on both — a drift in
+ *  either (e.g. the resource moved on to a new `ETag`, or a field present at discover time is gone
+ *  by re-discover time) means the judge's tentative Fail/Warn was read off a baseline that no longer
+ *  holds. Compares via `fieldValues` arrays, never `headerOf`, so a repeated field's drift is caught
+ *  instead of masked by both sides collapsing to `null`. */
 function validatorStable(
   names: readonly string[],
   before: ConditionalExchange | undefined,
@@ -191,7 +204,7 @@ function validatorStable(
   if (before === undefined || after === undefined || before.status !== after.status) {
     return false;
   }
-  return names.every(name => headerOf(before, name) === headerOf(after, name));
+  return names.every(name => sameFieldValues(before, after, name));
 }
 
 /**
