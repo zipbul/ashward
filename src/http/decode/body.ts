@@ -106,8 +106,8 @@ function decodeChunked(raw: Uint8Array, bodyOffset: number): DecodedBodyShape {
       return { content: concat(chunks), complete: false };
     }
 
-    const sizeText = new TextDecoder().decode(raw.subarray(offset, sizeLine.textEnd)).split(';', 1)[0]?.trim();
-    if (sizeText === undefined || !/^[0-9a-fA-F]+$/.test(sizeText)) {
+    const sizeText = trimOws(new TextDecoder().decode(raw.subarray(offset, sizeLine.textEnd)).split(';', 1)[0] ?? '');
+    if (!/^[0-9a-fA-F]+$/.test(sizeText)) {
       return { content: concat(chunks), complete: false };
     }
 

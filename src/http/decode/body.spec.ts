@@ -34,6 +34,36 @@ test('strips a trailer section after the 0-chunk from content', () => {
   expect(result.complete).toBe(true);
 });
 
+// RFC 9112 §7.1.1: chunk-size = 1*HEXDIG, optionally followed by BWS (SP/HTAB only) then a
+// chunk-ext. A chunk-size line-splitter that uses JS `.trim()` also eats VT, FF, CR, NBSP, and
+// other Unicode whitespace — silently "recovering" a hex size from a malformed line a strict
+// parser rejects, which is the same framing parser-differential already fixed for
+// Content-Length/Transfer-Encoding in this file (request-smuggling risk via chunk-boundary
+// disagreement).
+test('a chunk-size line with a trailing form feed (not BWS) is not decoded as a valid hex size', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\x0C\r\nWiki\r\n0\r\n\r\n');
+  expect(result.content.length).toBe(0);
+  expect(result.complete).toBe(false);
+});
+
+test('a chunk-size line starting with a vertical tab (not BWS) is not decoded as a valid hex size', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n\x0B4\r\nWiki\r\n0\r\n\r\n');
+  expect(result.content.length).toBe(0);
+  expect(result.complete).toBe(false);
+});
+
+test('a chunk-size line with a space (real BWS) before a chunk-extension still recovers the size', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4 ;ext=1\r\nWiki\r\n0\r\n\r\n');
+  expect(text(result.content)).toBe('Wiki');
+  expect(result.complete).toBe(true);
+});
+
+test('a chunk-size line with a tab (real BWS) before a chunk-extension still recovers the size', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\t;ext=1\r\nWiki\r\n0\r\n\r\n');
+  expect(text(result.content)).toBe('Wiki');
+  expect(result.complete).toBe(true);
+});
+
 test('reports incomplete with partial content when truncated mid-chunk', () => {
   const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\na\r\nWiki');
   expect(text(result.content)).toBe('Wiki');
