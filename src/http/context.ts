@@ -13,13 +13,17 @@ export interface HttpTarget {
   readonly timeoutMs: number;
 }
 
+/** The two query-parser reflection modes a caller may opt a `ReflectConfig` (or `AshwardOptions.
+ *  reflect`, or a `defineReflectRule` spec) into. */
+export type ReflectMode = 'form' | 'uri-generic';
+
 /** A caller-opted echo contract (query-parser reflection rules): the route at `path` (defaulting to
  *  `target.path` when omitted) echoes back an ordered pair list JSON of the query it received,
  *  parsed per this declared mode. Optional and undefined by default — a reflect rule
  *  Skips(EndpointNotReflecting) when absent. `path` is read ONLY by `defineReflectRule` — every
  *  other rule (including the Q1-Q4 heuristics) always probes `target.path`, never this one. */
 export interface ReflectConfig {
-  readonly mode: 'form' | 'uri-generic';
+  readonly mode: ReflectMode;
   readonly path?: string;
 }
 

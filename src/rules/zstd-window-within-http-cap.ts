@@ -1,13 +1,15 @@
-import { InconclusiveReason, Rule, SkipReason, Verdict } from '../core/contract/enums';
+import { Rule, SkipReason, Verdict } from '../core/contract/enums';
 import { ACCEPT_ENCODING } from '../normative/header-names';
 import { zstdWindowSizes } from '../normative/zstd';
 import { CompressionClauseId } from '../standards/catalog/compression';
 import { refsFor } from './kit/clause-refs';
-import { outermostCoding } from './kit/content-encoding';
+import { gateOutermostCoding } from './kit/content-encoding';
 import { defineResponseRule } from './kit/response-rule';
 
 /** RFC 9659 §3: a zstd frame over HTTP must not require a Window_Size exceeding 8 MiB. */
 const HTTP_ZSTD_WINDOW_CAP = 8 * 1024 * 1024;
+
+const ACCEPTED_ZSTD_CODINGS = ['zstd'];
 
 /**
  * §5.4 — a `zstd` content-coded response MUST NOT require a decoder window exceeding 8 MiB
@@ -22,21 +24,11 @@ export const zstdWindowWithinHttpCap = defineResponseRule({
   probes: [{ headers: [{ name: ACCEPT_ENCODING, value: 'zstd' }] }],
   normative: refsFor(CompressionClauseId.ZstdWindowCap),
   judge(exchanges) {
-    const [exchange] = exchanges;
-    if (exchange === undefined) {
-      return { verdict: Verdict.Skip, reason: SkipReason.HeaderAbsent };
+    const gate = gateOutermostCoding(exchanges, ACCEPTED_ZSTD_CODINGS);
+    if (!('content' in gate)) {
+      return gate;
     }
-    const outermost = outermostCoding(exchange.head);
-    if (outermost === null) {
-      return { verdict: Verdict.Skip, reason: SkipReason.HeaderAbsent };
-    }
-    if (outermost.toLowerCase() !== 'zstd') {
-      return { verdict: Verdict.Skip, reason: SkipReason.StackedCoding };
-    }
-    if (!exchange.complete) {
-      return { verdict: Verdict.Inconclusive, reason: InconclusiveReason.IncompleteMessage };
-    }
-    const windowSizes = zstdWindowSizes(exchange.content);
+    const windowSizes = zstdWindowSizes(gate.content);
     if (windowSizes.length === 0) {
       return { verdict: Verdict.Skip, reason: SkipReason.OutOfScope };
     }

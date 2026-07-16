@@ -1,4 +1,5 @@
 import type { ProbeFn } from '../http/context';
+import type { ProbeResult } from '../transport/tcp/interfaces';
 
 import { TerminationCause } from '../transport/tcp/enums';
 
@@ -10,6 +11,18 @@ interface CannedExchange {
   readonly head: string;
   readonly body?: string;
   readonly complete?: boolean;
+}
+
+/** A raw `HTTP/1.1 {status}` response head, with an optional pre-built field block, for handing to
+ *  `replay()` — the canonical single-response fixture the conditional-request rule specs build on. */
+export function res(status: string, fields = ''): string {
+  return `HTTP/1.1 ${status}\r\n${fields}\r\n\r\n`;
+}
+
+/** A raw `HTTP/1.1 200 OK` response head with a caller-built field block, for handing to `replay()`
+ *  — the canonical fixture the CORS/token-list rule specs build on. */
+export function head(fields: string): string {
+  return `HTTP/1.1 200 OK\r\n${fields}\r\n\r\n`;
 }
 
 /** A ProbeFn that replays canned response strings in order (repeating the last for any extra call),
@@ -56,4 +69,26 @@ export function replayExchanges(...exchanges: readonly CannedExchange[]): ProbeF
     const termination = exchange.complete === false ? TerminationCause.Rst : TerminationCause.Fin;
     return Promise.resolve({ response: new TextEncoder().encode(raw), termination });
   };
+}
+
+/** A single Content-Length-framed `HTTP/1.1 200 OK` exchange, byte-assembled from a caller-built
+ *  field block and a raw body (the Content-Length is computed from `body`, or overridden via
+ *  `opts.contentLength` to build a truncated/oversized-declaration fixture) — for driving a
+ *  body-bearing rule's judge (see response-rule.ts) with a single canned `ProbeResult`, without a
+ *  socket. `opts.complete: false` signals the peer reset before the message finished (`Rst`); the
+ *  real decoder still computes completeness from the bytes given, this only chooses the termination
+ *  cause. */
+export function exchange(
+  headFields: string,
+  body: readonly number[],
+  opts?: { contentLength?: number; complete?: boolean },
+): ProbeResult {
+  const bodyBytes = Uint8Array.from(body);
+  const cl = opts?.contentLength ?? bodyBytes.length;
+  const headStr = `HTTP/1.1 200 OK\r\n${headFields}\r\nContent-Length: ${cl}\r\n\r\n`;
+  const headBytes = new TextEncoder().encode(headStr);
+  const response = new Uint8Array(headBytes.length + bodyBytes.length);
+  response.set(headBytes, 0);
+  response.set(bodyBytes, headBytes.length);
+  return { response, termination: opts?.complete === false ? TerminationCause.Rst : TerminationCause.Fin };
 }

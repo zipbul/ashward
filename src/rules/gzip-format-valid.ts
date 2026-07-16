@@ -1,10 +1,13 @@
-import { InconclusiveReason, Rule, SkipReason, Verdict } from '../core/contract/enums';
+import { Rule, Verdict } from '../core/contract/enums';
 import { isWellFormedGzipHeader } from '../normative/gzip';
 import { ACCEPT_ENCODING } from '../normative/header-names';
 import { CompressionClauseId } from '../standards/catalog/compression';
 import { refsFor } from './kit/clause-refs';
-import { outermostCoding } from './kit/content-encoding';
+import { gateOutermostCoding } from './kit/content-encoding';
 import { defineResponseRule } from './kit/response-rule';
+
+/** `gzip` and its legacy `x-gzip` alias both name the same RFC 1952 format. */
+const ACCEPTED_GZIP_CODINGS = ['gzip', 'x-gzip'];
 
 /**
  * §5.1 — `gzip`/`x-gzip` is the RFC 1952 gzip file format: a correct member header is
@@ -18,21 +21,10 @@ export const gzipFormatValid = defineResponseRule({
   probes: [{ headers: [{ name: ACCEPT_ENCODING, value: 'gzip' }] }],
   normative: refsFor(CompressionClauseId.GzipFormatValid),
   judge(exchanges) {
-    const [exchange] = exchanges;
-    if (exchange === undefined) {
-      return { verdict: Verdict.Skip, reason: SkipReason.HeaderAbsent };
+    const gate = gateOutermostCoding(exchanges, ACCEPTED_GZIP_CODINGS);
+    if (!('content' in gate)) {
+      return gate;
     }
-    const outermost = outermostCoding(exchange.head);
-    if (outermost === null) {
-      return { verdict: Verdict.Skip, reason: SkipReason.HeaderAbsent };
-    }
-    const lower = outermost.toLowerCase();
-    if (lower !== 'gzip' && lower !== 'x-gzip') {
-      return { verdict: Verdict.Skip, reason: SkipReason.StackedCoding };
-    }
-    if (!exchange.complete) {
-      return { verdict: Verdict.Inconclusive, reason: InconclusiveReason.IncompleteMessage };
-    }
-    return isWellFormedGzipHeader(exchange.content) ? { verdict: Verdict.Pass } : { verdict: Verdict.Warn };
+    return isWellFormedGzipHeader(gate.content) ? { verdict: Verdict.Pass } : { verdict: Verdict.Warn };
   },
 });

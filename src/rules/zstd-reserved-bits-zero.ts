@@ -1,10 +1,12 @@
-import { InconclusiveReason, Rule, SkipReason, Verdict } from '../core/contract/enums';
+import { Rule, SkipReason, Verdict } from '../core/contract/enums';
 import { ACCEPT_ENCODING } from '../normative/header-names';
 import { zstdAllReservedBitsZero } from '../normative/zstd';
 import { CompressionClauseId } from '../standards/catalog/compression';
 import { refsFor } from './kit/clause-refs';
-import { outermostCoding } from './kit/content-encoding';
+import { gateOutermostCoding } from './kit/content-encoding';
 import { defineResponseRule } from './kit/response-rule';
+
+const ACCEPTED_ZSTD_CODINGS = ['zstd'];
 
 /**
  * §5.4 — a zstd Frame_Header_Descriptor's Unused bit and Reserved bit (RFC 8878
@@ -18,21 +20,11 @@ export const zstdReservedBitsZero = defineResponseRule({
   probes: [{ headers: [{ name: ACCEPT_ENCODING, value: 'zstd' }] }],
   normative: refsFor(CompressionClauseId.ZstdReservedBitsZero),
   judge(exchanges) {
-    const [exchange] = exchanges;
-    if (exchange === undefined) {
-      return { verdict: Verdict.Skip, reason: SkipReason.HeaderAbsent };
+    const gate = gateOutermostCoding(exchanges, ACCEPTED_ZSTD_CODINGS);
+    if (!('content' in gate)) {
+      return gate;
     }
-    const outermost = outermostCoding(exchange.head);
-    if (outermost === null) {
-      return { verdict: Verdict.Skip, reason: SkipReason.HeaderAbsent };
-    }
-    if (outermost.toLowerCase() !== 'zstd') {
-      return { verdict: Verdict.Skip, reason: SkipReason.StackedCoding };
-    }
-    if (!exchange.complete) {
-      return { verdict: Verdict.Inconclusive, reason: InconclusiveReason.IncompleteMessage };
-    }
-    const reservedZero = zstdAllReservedBitsZero(exchange.content);
+    const reservedZero = zstdAllReservedBitsZero(gate.content);
     if (reservedZero === null) {
       return { verdict: Verdict.Skip, reason: SkipReason.OutOfScope };
     }

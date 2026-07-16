@@ -1,22 +1,16 @@
 import type { ClauseResult, Evidence, RuleDef } from '../../core/contract/interfaces';
 import type { ClauseReason } from '../../core/contract/types';
 import type { HttpRuleContext } from '../../http/context';
-import type { HeaderField, ResponseHead } from '../../http/decode/interfaces';
+import type { ResponseHead } from '../../http/decode/interfaces';
 import type { NormativeRef, Taxonomy } from '../../standards/interfaces';
 import type { ProbeResult } from '../../transport/tcp/interfaces';
+import type { ContentProbeOptions } from './content-probe';
 
 import { InconclusiveReason, Verdict } from '../../core/contract/enums';
 import { decodeBody } from '../../http/decode/body';
 import { parseResponseHead } from '../../http/decode/head-parse';
 import { TerminationCause } from '../../transport/tcp/enums';
 import { craftContentProbe } from './content-probe';
-
-/** What a content probe asks: the request headers it carries (e.g. Accept-Encoding, Range,
- *  If-None-Match). Distinct from the CORS `ProbeSpec` in craft-probe.ts — a response-rule probe
- *  never carries `Origin`. */
-interface ProbeSpec {
-  readonly headers: readonly HeaderField[];
-}
 
 /** One probe's fully-decoded exchange: the parsed head, the transfer-decoded content, and
  *  whether the message completed — everything a judge needs without touching raw bytes. */
@@ -39,7 +33,7 @@ interface ResponseRuleSpec {
   readonly normative: readonly NormativeRef[];
   readonly tags?: Taxonomy;
   /** The well-formed probes this rule sends, in order, each over its own connection. */
-  readonly probes: readonly ProbeSpec[];
+  readonly probes: readonly ContentProbeOptions[];
   /** Pure: every exchange is head-parsed and body-decoded before the judge sees it, so it never
    *  handles transport failure. A judge that wants to treat an incomplete body as inconclusive
    *  returns `{verdict: Verdict.Inconclusive, reason: InconclusiveReason.IncompleteMessage}` —
@@ -123,4 +117,4 @@ export function defineResponseRule(spec: ResponseRuleSpec): RuleDef<HttpRuleCont
   };
 }
 
-export type { ResponseRuleSpec };
+export type { Judgment, ResponseExchange, ResponseRuleSpec };

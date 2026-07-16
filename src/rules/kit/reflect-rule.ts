@@ -1,5 +1,5 @@
 import type { RuleDef } from '../../core/contract/interfaces';
-import type { HttpRuleContext } from '../../http/context';
+import type { HttpRuleContext, ReflectMode } from '../../http/context';
 import type { NormativeRef, Taxonomy } from '../../standards/interfaces';
 
 import { InconclusiveReason, Rule, SkipReason, Verdict } from '../../core/contract/enums';
@@ -17,7 +17,7 @@ interface ReflectRuleSpec {
   readonly normative: readonly NormativeRef[];
   readonly tags?: Taxonomy;
   /** Which reflection mode this rule exercises — must match `context.reflect.mode` to run at all. */
-  readonly mode: 'form' | 'uri-generic';
+  readonly mode: ReflectMode;
   /** The exact raw query octets appended (verbatim) to `target.path` — from PLAN §4's tables. */
   readonly rawQuery: string;
   /** The oracle-computed ordered pair list the echo MUST match. */

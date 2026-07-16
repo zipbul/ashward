@@ -3,11 +3,10 @@ import { test, expect } from 'bun:test';
 import type { HttpTarget } from '../http/context';
 
 import { SkipReason, Verdict } from '../core/contract/enums';
-import { replay } from '../testkit/replay';
+import { head, replay } from '../testkit/replay';
 import { accessControlAllowOriginStaticNoVary } from './access-control-allow-origin-static-no-vary';
 
 const TARGET: HttpTarget = { host: 'origin.test', port: 80, path: '/', timeoutMs: 500 };
-const head = (fields: string): string => `HTTP/1.1 200 OK\r\n${fields}\r\n\r\n`;
 const run = async (first: string, second: string) =>
   accessControlAllowOriginStaticNoVary.run({ probe: replay(head(first), head(second)), target: TARGET });
 

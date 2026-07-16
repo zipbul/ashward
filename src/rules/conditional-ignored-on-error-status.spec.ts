@@ -3,11 +3,10 @@ import { test, expect } from 'bun:test';
 import type { HttpTarget } from '../http/context';
 
 import { SkipReason, Verdict } from '../core/contract/enums';
-import { replay } from '../testkit/replay';
+import { replay, res } from '../testkit/replay';
 import { conditionalIgnoredOnErrorStatus as rule } from './conditional-ignored-on-error-status';
 
 const TARGET: HttpTarget = { host: 'origin.test', port: 80, path: '/', timeoutMs: 500 };
-const res = (status: string, fields = ''): string => `HTTP/1.1 ${status}\r\n${fields}\r\n\r\n`;
 const run = async (...responses: string[]) => rule.run({ probe: replay(...responses), target: TARGET });
 
 // PLAN §5 C14 — §3.2 MUST→Fail: custom discover = GET {path}/<random> twice (status-stability

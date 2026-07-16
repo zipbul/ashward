@@ -3,11 +3,10 @@ import { test, expect } from 'bun:test';
 import type { HttpTarget } from '../http/context';
 
 import { SkipReason, Verdict } from '../core/contract/enums';
-import { replay } from '../testkit/replay';
+import { head, replay } from '../testkit/replay';
 import { contentEncodingNoIdentityToken } from './content-encoding-no-identity-token';
 
 const TARGET: HttpTarget = { host: 'origin.test', port: 80, path: '/', timeoutMs: 500 };
-const head = (fields: string): string => `HTTP/1.1 200 OK\r\n${fields}\r\n\r\n`;
 const run = async (fields: string) => contentEncodingNoIdentityToken.run({ probe: replay(head(fields)), target: TARGET });
 
 test('warns when Content-Encoding carries the identity token', async () => {

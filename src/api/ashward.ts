@@ -1,6 +1,6 @@
 import type { RuleDef } from '../core/contract/interfaces';
 import type { Report } from '../core/report/interfaces';
-import type { HttpRuleContext } from '../http/context';
+import type { HttpRuleContext, ReflectMode } from '../http/context';
 
 import { runHttp } from '../http/run';
 import { ALL_RULES } from '../rules/all';
@@ -16,7 +16,7 @@ import { resolveTarget } from './resolve-target';
 export interface AshwardOptions {
   readonly reflect?: {
     readonly path?: string;
-    readonly mode: 'form' | 'uri-generic';
+    readonly mode: ReflectMode;
   };
 }
 

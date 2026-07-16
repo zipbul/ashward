@@ -4,25 +4,10 @@ import type { HttpTarget, ProbeFn } from '../http/context';
 import type { ProbeResult } from '../transport/tcp/interfaces';
 
 import { InconclusiveReason, SkipReason, Verdict } from '../core/contract/enums';
-import { TerminationCause } from '../transport/tcp/enums';
+import { exchange } from '../testkit/replay';
 import { deflateZlibWrapped } from './deflate-zlib-wrapped';
 
 const TARGET: HttpTarget = { host: 'origin.test', port: 80, path: '/', timeoutMs: 500 };
-
-function exchange(
-  headFields: string,
-  body: readonly number[],
-  opts?: { contentLength?: number; complete?: boolean },
-): ProbeResult {
-  const bodyBytes = Uint8Array.from(body);
-  const cl = opts?.contentLength ?? bodyBytes.length;
-  const headStr = `HTTP/1.1 200 OK\r\n${headFields}\r\nContent-Length: ${cl}\r\n\r\n`;
-  const headBytes = new TextEncoder().encode(headStr);
-  const response = new Uint8Array(headBytes.length + bodyBytes.length);
-  response.set(headBytes, 0);
-  response.set(bodyBytes, headBytes.length);
-  return { response, termination: opts?.complete === false ? TerminationCause.Rst : TerminationCause.Fin };
-}
 
 const probeOnce =
   (result: ProbeResult): ProbeFn =>
