@@ -123,4 +123,4 @@ export function defineResponseRule(spec: ResponseRuleSpec): RuleDef<HttpRuleCont
   };
 }
 
-export type { Judgment, ProbeSpec, ResponseExchange, ResponseRuleSpec };
+export type { ResponseRuleSpec };

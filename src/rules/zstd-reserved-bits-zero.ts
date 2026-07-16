@@ -1,6 +1,6 @@
 import { InconclusiveReason, Rule, SkipReason, Verdict } from '../core/contract/enums';
 import { ACCEPT_ENCODING } from '../normative/header-names';
-import { zstdAllReservedBitsZero as parseZstdReservedBitsZero } from '../normative/zstd';
+import { zstdAllReservedBitsZero } from '../normative/zstd';
 import { CompressionClauseId } from '../standards/catalog/compression';
 import { refsFor } from './kit/clause-refs';
 import { outermostCoding } from './kit/content-encoding';
@@ -32,7 +32,7 @@ export const zstdReservedBitsZero = defineResponseRule({
     if (!exchange.complete) {
       return { verdict: Verdict.Inconclusive, reason: InconclusiveReason.IncompleteMessage };
     }
-    const reservedZero = parseZstdReservedBitsZero(exchange.content);
+    const reservedZero = zstdAllReservedBitsZero(exchange.content);
     if (reservedZero === null) {
       return { verdict: Verdict.Skip, reason: SkipReason.OutOfScope };
     }

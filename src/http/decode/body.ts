@@ -4,6 +4,7 @@ import { CONTENT_LENGTH, TRANSFER_ENCODING } from '../../normative/header-names'
 import { TerminationCause } from '../../transport/tcp/enums';
 import { CR, LF } from './constants';
 import { fieldValues } from './fields';
+import { trimOws } from './ows';
 
 interface DecodedBodyShape {
   readonly content: Uint8Array;
@@ -25,22 +26,6 @@ function transferCodings(head: ResponseHead): readonly string[] {
 function isChunked(codings: readonly string[]): boolean {
   const last = codings[codings.length - 1];
   return last?.toLowerCase() === 'chunked';
-}
-
-/** Strip only SP (0x20) and HTAB (0x09) — the RFC 9110 §5.6.3 OWS set — from both ends of a
- *  comma-list member. NOT JS `.trim()`, which also eats VT, FF, CR, LF, NBSP, and other Unicode
- *  whitespace: silently accepting one of those as if it were OWS would recover a length from a
- *  value a strict parser rejects — a framing parser-differential (request-smuggling risk). */
-function trimOws(value: string): string {
-  let start = 0;
-  let end = value.length;
-  while (start < end && (value[start] === ' ' || value[start] === '\t')) {
-    start += 1;
-  }
-  while (end > start && (value[end - 1] === ' ' || value[end - 1] === '\t')) {
-    end -= 1;
-  }
-  return value.slice(start, end);
 }
 
 type ContentLengthResult =

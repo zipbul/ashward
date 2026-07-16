@@ -1,14 +1,10 @@
 import { Rule, SkipReason, Verdict } from '../core/contract/enums';
 import { IF_UNMODIFIED_SINCE, LAST_MODIFIED } from '../normative/header-names';
 import { addDays, formatImfFixdate, parseHttpDate } from '../normative/http-date';
+import { isOkStatus } from '../normative/ok-status';
 import { ConditionalClauseId } from '../standards/catalog/conditional-request';
 import { refsFor } from './kit/clause-refs';
 import { defineConditionalRule, headerOf } from './kit/conditional-rule';
-
-/** True for a 2xx (success) status. */
-function isSuccess(status: number): boolean {
-  return status >= 200 && status <= 299;
-}
 
 /**
  * C6 — §5.4.7 MUST NOT: on a GET whose `If-Unmodified-Since` is strictly earlier than the discovered
@@ -39,7 +35,7 @@ export const ifUnmodifiedSinceFalseNotPerformed = defineConditionalRule({
   build(discovered) {
     const lastModified = headerOf(discovered[0], LAST_MODIFIED);
     const time = lastModified === null ? null : parseHttpDate(lastModified);
-    const instant = new Date(time ?? 0);
+    const instant = new Date(time!);
     const earlier = formatImfFixdate(addDays(instant, -1));
     const equal = formatImfFixdate(instant);
     return [
@@ -51,7 +47,7 @@ export const ifUnmodifiedSinceFalseNotPerformed = defineConditionalRule({
     const disqualifying = probed[0]?.status;
     const contrast = probed[1]?.status;
     if (disqualifying === 412) {
-      if (contrast !== undefined && isSuccess(contrast)) {
+      if (contrast !== undefined && isOkStatus(contrast)) {
         return { verdict: Verdict.Pass };
       }
       if (contrast === 412) {
@@ -59,7 +55,7 @@ export const ifUnmodifiedSinceFalseNotPerformed = defineConditionalRule({
       }
       return { verdict: Verdict.Skip, reason: SkipReason.EndpointUnstable };
     }
-    if (disqualifying !== undefined && isSuccess(disqualifying)) {
+    if (disqualifying !== undefined && isOkStatus(disqualifying)) {
       return { verdict: Verdict.Fail };
     }
     return { verdict: Verdict.Skip, reason: SkipReason.EndpointUnstable };

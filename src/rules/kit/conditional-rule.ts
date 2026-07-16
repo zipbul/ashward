@@ -10,6 +10,7 @@ import { decodeBody } from '../../http/decode/body';
 import { fieldValues, singleFieldValue } from '../../http/decode/fields';
 import { parseResponseHead } from '../../http/decode/head-parse';
 import { craftRequest } from '../../http/encode/request';
+import { isServerError } from '../../normative/ok-status';
 import { TerminationCause } from '../../transport/tcp/enums';
 import { authorityFor } from './craft-probe';
 
@@ -182,7 +183,7 @@ function inconclusiveFrom(spec: ConditionalRuleSpec, batch: Batch, outcome: Extr
 }
 
 function hasServerError(exchanges: readonly ConditionalExchange[]): boolean {
-  return exchanges.some(exchange => exchange.status >= 500 && exchange.status <= 599);
+  return exchanges.some(exchange => isServerError(exchange.status));
 }
 
 /** Default existence-guard stability check: every exchange in the set reports the identical status,
@@ -266,6 +267,7 @@ export function defineConditionalRule(spec: ConditionalRuleSpec): RuleDef<HttpRu
     ...(spec.tags !== undefined ? { tags: spec.tags } : {}),
 
     async run(context: HttpRuleContext): Promise<ClauseResult> {
+      const expectedBaselineStatus = spec.expectedBaselineStatus ?? (() => true);
       const discoverSpecs = spec.discoverProbes ?? [{ method: 'GET' as const, headers: [] }];
       const discoverBatch = await sendBatch(context, discoverSpecs);
       if (!discoverBatch.outcome.ok) {
@@ -281,7 +283,7 @@ export function defineConditionalRule(spec: ConditionalRuleSpec): RuleDef<HttpRu
           ...withEvidence(lastEvidence(discoverBatch)),
         };
       }
-      if (spec.guard === 'existence' && !existenceStable(spec.expectedBaselineStatus ?? (() => true), discovered)) {
+      if (spec.guard === 'existence' && !existenceStable(expectedBaselineStatus, discovered)) {
         return {
           ruleId: spec.id,
           verdict: Verdict.Skip,
@@ -315,8 +317,9 @@ export function defineConditionalRule(spec: ConditionalRuleSpec): RuleDef<HttpRu
         return settled;
       }
 
-      // A disqualifying verdict: first, the exchanges already fetched must show no 5xx anywhere.
-      if (hasServerError(discovered) || hasServerError(probed)) {
+      // A disqualifying verdict: first, the freshly probed exchanges must show no 5xx (the
+      // discovered baseline was already checked, above, before gate/build ever ran).
+      if (hasServerError(probed)) {
         return { ruleId: spec.id, verdict: Verdict.Skip, reason: SkipReason.EndpointUnstable, ...finalEvidence };
       }
 
@@ -335,8 +338,7 @@ export function defineConditionalRule(spec: ConditionalRuleSpec): RuleDef<HttpRu
 
       const stable =
         spec.guard === 'existence'
-          ? existenceStable(spec.expectedBaselineStatus ?? (() => true), reconfirmed) &&
-            reconfirmed[0]?.status === discovered[0]?.status
+          ? existenceStable(expectedBaselineStatus, reconfirmed) && reconfirmed[0]?.status === discovered[0]?.status
           : validatorStable(spec.validatorHeaders ?? [], spec.validatorPresenceHeaders ?? [], discovered[0], reconfirmed[0]);
       if (!stable) {
         return { ruleId: spec.id, verdict: Verdict.Skip, reason: SkipReason.EndpointUnstable, ...reconfirmEvidence };
@@ -347,4 +349,4 @@ export function defineConditionalRule(spec: ConditionalRuleSpec): RuleDef<HttpRu
 }
 
 export { headerOf };
-export type { ConditionalExchange, ConditionalGuard, ConditionalJudgment, ConditionalProbeSpec, ConditionalRuleSpec, SafeMethod };
+export type { ConditionalExchange };

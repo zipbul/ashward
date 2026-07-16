@@ -2,35 +2,19 @@ import type { ResponseHead } from '../http/decode/interfaces';
 
 import { Rule, SkipReason, Verdict } from '../core/contract/enums';
 import { fieldValues } from '../http/decode/fields';
-import { ACCEPT_ENCODING, CACHE_CONTROL, VARY } from '../normative/header-names';
-import { WILDCARD } from '../normative/literals';
+import { ACCEPT_ENCODING, CACHE_CONTROL } from '../normative/header-names';
+import { isServerError } from '../normative/ok-status';
 import { CompressionClauseId } from '../standards/catalog/compression';
 import { refsFor } from './kit/clause-refs';
 import { isCompressed } from './kit/content-encoding';
 import { defineResponseRule } from './kit/response-rule';
-
-/** True when the response's Vary field names Accept-Encoding (case-insensitive) or `*`. */
-function varyHasAcceptEncoding(head: ResponseHead): boolean {
-  for (const value of fieldValues(head, VARY)) {
-    for (const element of value.split(',')) {
-      const token = element.trim().toLowerCase();
-      if (token === 'accept-encoding' || token === WILDCARD) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
+import { varyHasToken } from './kit/vary';
 
 /** True when the response carries a `Cache-Control: no-store` directive (case-insensitive). */
 function hasNoStore(head: ResponseHead): boolean {
   return fieldValues(head, CACHE_CONTROL).some(value =>
     value.split(',').some(element => element.trim().toLowerCase() === 'no-store'),
   );
-}
-
-function isServerError(head: ResponseHead): boolean {
-  return head.statusLine.statusCode >= 500 && head.statusLine.statusCode <= 599;
 }
 
 /** RFC 9110 §15.1: status codes cacheable by default, absent explicit cache-control directives.
@@ -58,7 +42,7 @@ export const varyAcceptEncodingOnNegotiated = defineResponseRule({
     if (a === undefined || b === undefined) {
       return { verdict: Verdict.Skip, reason: SkipReason.NotNegotiated };
     }
-    if (isServerError(a.head) || isServerError(b.head)) {
+    if (isServerError(a.head.statusLine.statusCode) || isServerError(b.head.statusLine.statusCode)) {
       return { verdict: Verdict.Skip, reason: SkipReason.EndpointUnstable };
     }
     if (hasNoStore(a.head) || hasNoStore(b.head) || !isCacheableStatus(a.head) || !isCacheableStatus(b.head)) {
@@ -72,7 +56,7 @@ export const varyAcceptEncodingOnNegotiated = defineResponseRule({
     if (bCompressed) {
       return { verdict: Verdict.Skip, reason: SkipReason.NotNegotiated };
     }
-    const missingVary = !varyHasAcceptEncoding(a.head) || !varyHasAcceptEncoding(b.head);
+    const missingVary = !varyHasToken(a.head, 'accept-encoding') || !varyHasToken(b.head, 'accept-encoding');
     return missingVary ? { verdict: Verdict.Warn } : { verdict: Verdict.Pass };
   },
 });

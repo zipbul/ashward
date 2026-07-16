@@ -30,7 +30,7 @@ export const precedenceIfNoneMatchOverIfModifiedSince = defineConditionalRule({
       {
         headers: [
           { name: IF_NONE_MATCH, value: '"no-match"' },
-          { name: IF_MODIFIED_SINCE, value: headerOf(discovered[0], LAST_MODIFIED) ?? '' },
+          { name: IF_MODIFIED_SINCE, value: headerOf(discovered[0], LAST_MODIFIED)! },
         ],
       },
     ];

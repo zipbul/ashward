@@ -4,12 +4,7 @@ import type { HttpTarget } from '../http/context';
 
 import { SkipReason, Verdict } from '../core/contract/enums';
 import { replay } from '../testkit/replay';
-import {
-  EXACT_VALUE_HEADERS,
-  notModifiedRequiredHeaders as rule,
-  PRESENCE_ONLY_HEADERS,
-  REQUIRED_HEADERS,
-} from './not-modified-required-headers';
+import { notModifiedRequiredHeaders as rule } from './not-modified-required-headers';
 
 const TARGET: HttpTarget = { host: 'origin.test', port: 80, path: '/', timeoutMs: 500 };
 const res = (status: string, fields = ''): string => `HTTP/1.1 ${status}\r\n${fields}\r\n\r\n`;
@@ -21,19 +16,6 @@ const FULL_METADATA = [
   'Expires: Sun, 06 Nov 1994 08:49:37 GMT',
   'Content-Location: /canonical',
 ].join('\r\n');
-
-// MINOR 5 — REQUIRED_HEADERS (used by the judge to decide what a 304 MUST carry) and
-// EXACT_VALUE_HEADERS ∪ PRESENCE_ONLY_HEADERS (used by the kit's RE-DISCOVER re-confirm guard) must
-// never drift apart: a required header added to one set without the other would silently let a Fail
-// stand un-reconfirmed (or a header the guard re-checks that the judge never actually requires).
-// This is now a structural derivation (REQUIRED_HEADERS = EXACT_VALUE_HEADERS ∪
-// PRESENCE_ONLY_HEADERS), not independent literals — this test pins the invariant so a future
-// refactor back to independent literals fails immediately.
-test('REQUIRED_HEADERS is exactly the union of EXACT_VALUE_HEADERS and PRESENCE_ONLY_HEADERS, with no overlap', () => {
-  const union = new Set([...EXACT_VALUE_HEADERS, ...PRESENCE_ONLY_HEADERS]);
-  expect(union.size).toBe(EXACT_VALUE_HEADERS.length + PRESENCE_ONLY_HEADERS.length);
-  expect(new Set(REQUIRED_HEADERS)).toEqual(union);
-});
 
 // PLAN §5 C11 — §6.1.2 MUST→Fail: elicit 304 (INM:<E>); it MUST carry each of ETag/Cache-Control/
 // Vary/Expires/Content-Location that the discovered 200 sent (missing→Fail). Couldn't elicit

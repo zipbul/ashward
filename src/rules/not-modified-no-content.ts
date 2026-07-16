@@ -23,7 +23,7 @@ export const notModifiedNoContent = defineConditionalRule({
     return headerOf(baseline, ETAG) === null ? SkipReason.NoValidator : null;
   },
   build(discovered) {
-    return [{ headers: [{ name: IF_NONE_MATCH, value: headerOf(discovered[0], ETAG) ?? '' }] }];
+    return [{ headers: [{ name: IF_NONE_MATCH, value: headerOf(discovered[0], ETAG)! }] }];
   },
   judge(_discovered, probed) {
     const notModified = probed[0];

@@ -193,7 +193,8 @@ function frameEnd(bytes: Uint8Array, header: FrameHeader): number | null {
 
 /** Walks every standard frame in `bytes`, skipping interleaved Skippable_Frames, stopping as soon
  *  as a frame's header or block data cannot be parsed (a truncated/malformed tail is simply not
- *  reported, matching the single-frame helpers' "unparseable → not reported" discipline). */
+ *  reported, matching {@link locateStandardFrame}/{@link parseFrameHeader}'s own "unparseable →
+ *  not reported" discipline). */
 function parseAllFrames(bytes: Uint8Array): readonly FrameHeader[] {
   const headers: FrameHeader[] = [];
   let offset = 0;
@@ -216,50 +217,6 @@ function parseAllFrames(bytes: Uint8Array): readonly FrameHeader[] {
     }
     offset = end;
   }
-}
-
-/**
- * RFC 8878 §3.1.1.1.2 window size of the FIRST standard frame in `bytes` — the Frame_Content_Size
- * when Single_Segment_flag is set, else decoded from the Window_Descriptor byte
- * (`windowBase = 2^(10+exponent)`, `windowAdd = (windowBase/8) * mantissa`). `null` if `bytes` is
- * not a parseable zstd frame. For a multi-frame stream, prefer {@link zstdWindowSizes}.
- */
-export function zstdWindowSize(bytes: Uint8Array): number | null {
-  const frameOffset = locateStandardFrame(bytes);
-
-  if (frameOffset === null) {
-    return null;
-  }
-
-  const header = parseFrameHeader(bytes, frameOffset);
-
-  if (header === null) {
-    return null;
-  }
-
-  return windowSizeOf(header);
-}
-
-/**
- * True iff the FIRST standard frame's Frame_Header_Descriptor Unused bit (bit 4) and Reserved bit
- * (bit 3) are both zero (RFC 8878 §3.1.1.1.1: "Reserved_bit … must be set to zero"). `null` if
- * `bytes` is not a parseable zstd frame. For a multi-frame stream, prefer
- * {@link zstdAllReservedBitsZero}.
- */
-export function zstdReservedBitsZero(bytes: Uint8Array): boolean | null {
-  const frameOffset = locateStandardFrame(bytes);
-
-  if (frameOffset === null) {
-    return null;
-  }
-
-  const header = parseFrameHeader(bytes, frameOffset);
-
-  if (header === null) {
-    return null;
-  }
-
-  return header.unusedBit === 0 && header.reservedBit === 0;
 }
 
 /**

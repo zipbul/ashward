@@ -1,14 +1,10 @@
 import { Rule, SkipReason, Verdict } from '../core/contract/enums';
 import { ETAG, IF_MATCH } from '../normative/header-names';
 import { WILDCARD } from '../normative/literals';
+import { isOkStatus } from '../normative/ok-status';
 import { ConditionalClauseId } from '../standards/catalog/conditional-request';
 import { refsFor } from './kit/clause-refs';
 import { defineConditionalRule, headerOf } from './kit/conditional-rule';
-
-/** True for a 2xx (success) status. */
-function isSuccess(status: number): boolean {
-  return status >= 200 && status <= 299;
-}
 
 /**
  * C4 — §5.1.3 MUST NOT: on a GET whose `If-Match` names an entity-tag that cannot match the
@@ -39,7 +35,7 @@ export const ifMatchFalseNotPerformed = defineConditionalRule({
     const disqualifying = probed[0]?.status;
     const contrast = probed[1]?.status;
     if (disqualifying === 412) {
-      if (contrast !== undefined && isSuccess(contrast)) {
+      if (contrast !== undefined && isOkStatus(contrast)) {
         return { verdict: Verdict.Pass };
       }
       if (contrast === 412) {
@@ -47,7 +43,7 @@ export const ifMatchFalseNotPerformed = defineConditionalRule({
       }
       return { verdict: Verdict.Skip, reason: SkipReason.EndpointUnstable };
     }
-    if (disqualifying !== undefined && isSuccess(disqualifying)) {
+    if (disqualifying !== undefined && isOkStatus(disqualifying)) {
       return { verdict: Verdict.Fail };
     }
     return { verdict: Verdict.Skip, reason: SkipReason.EndpointUnstable };

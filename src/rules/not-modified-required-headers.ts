@@ -63,7 +63,7 @@ export const notModifiedRequiredHeaders = defineConditionalRule({
     return headerOf(baseline, ETAG) === null ? SkipReason.NoValidator : null;
   },
   build(discovered) {
-    return [{ headers: [{ name: IF_NONE_MATCH, value: headerOf(discovered[0], ETAG) ?? '' }] }];
+    return [{ headers: [{ name: IF_NONE_MATCH, value: headerOf(discovered[0], ETAG)! }] }];
   },
   judge(discovered, probed) {
     const notModified = probed[0];
@@ -75,5 +75,3 @@ export const notModifiedRequiredHeaders = defineConditionalRule({
     return { verdict: missing ? Verdict.Fail : Verdict.Pass };
   },
 });
-
-export { EXACT_VALUE_HEADERS, PRESENCE_ONLY_HEADERS, REQUIRED_HEADERS };

@@ -115,5 +115,3 @@ export function defineReflectRule(spec: ReflectRuleSpec): RuleDef<HttpRuleContex
     },
   };
 }
-
-export type { ReflectRuleSpec };

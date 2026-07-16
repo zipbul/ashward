@@ -2,6 +2,7 @@ import type { HeaderField, ResponseHead } from './interfaces';
 
 import { CR, LF } from './constants';
 import { parseStatusLine } from './head-lex';
+import { trimOws } from './ows';
 
 interface HeadLines {
   readonly lines: string[];
@@ -34,22 +35,6 @@ function headLines(response: Uint8Array): HeadLines {
   }
 
   return { lines, bodyOffset: undefined };
-}
-
-/** Strip only the optional whitespace RFC 9112 §5.1 allows around a field value — SP (0x20) and
- *  HTAB (0x09). NOT JS `.trim()`, which also eats Unicode spaces/newlines: a byte-exact rule (e.g.
- *  Access-Control-Allow-Credentials must be `true`) must not have a leading U+00A0 silently removed
- *  so the value looks conformant when the server did not generate the exact bytes. */
-function trimOws(value: string): string {
-  let start = 0;
-  let end = value.length;
-  while (start < end && (value[start] === ' ' || value[start] === '\t')) {
-    start += 1;
-  }
-  while (end > start && (value[end - 1] === ' ' || value[end - 1] === '\t')) {
-    end -= 1;
-  }
-  return value.slice(start, end);
 }
 
 /**

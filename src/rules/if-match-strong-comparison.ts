@@ -1,13 +1,9 @@
 import { Rule, SkipReason, Verdict } from '../core/contract/enums';
+import { isStrongEtag } from '../normative/etag';
 import { ETAG, IF_MATCH } from '../normative/header-names';
 import { ConditionalClauseId } from '../standards/catalog/conditional-request';
 import { refsFor } from './kit/clause-refs';
 import { defineConditionalRule, headerOf } from './kit/conditional-rule';
-
-/** True for a strong (non-`W/`-prefixed) entity-tag value. */
-function isStrongEtag(value: string): boolean {
-  return !value.startsWith('W/');
-}
 
 /**
  * C5 — §2.3 MUST: `If-Match` comparison uses STRONG comparison, so a weak version of the discovered
@@ -31,7 +27,7 @@ export const ifMatchStrongComparison = defineConditionalRule({
     return isStrongEtag(etag) ? null : SkipReason.NotApplicable;
   },
   build(discovered) {
-    const etag = headerOf(discovered[0], ETAG) ?? '""';
+    const etag = headerOf(discovered[0], ETAG)!;
     return [{ headers: [{ name: IF_MATCH, value: `W/${etag}` }] }];
   },
   judge(_discovered, probed) {

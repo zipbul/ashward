@@ -59,7 +59,7 @@ export const httpDateFormatsAccepted = defineConditionalRule({
   build(discovered) {
     const lastModified = headerOf(discovered[0], LAST_MODIFIED);
     const time = lastModified === null ? null : parseHttpDate(lastModified);
-    const instant = new Date(time ?? 0);
+    const instant = new Date(time!);
     return [
       { headers: [{ name: IF_MODIFIED_SINCE, value: formatImfFixdate(instant) }] },
       { headers: [{ name: IF_MODIFIED_SINCE, value: formatRfc850(instant) }] },

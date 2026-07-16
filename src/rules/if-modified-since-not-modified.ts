@@ -1,17 +1,13 @@
 import { Rule, SkipReason, Verdict } from '../core/contract/enums';
 import { IF_MODIFIED_SINCE, LAST_MODIFIED } from '../normative/header-names';
 import { formatImfFixdate, parseHttpDate } from '../normative/http-date';
+import { isOkStatus } from '../normative/ok-status';
 import { ConditionalClauseId } from '../standards/catalog/conditional-request';
 import { refsFor } from './kit/clause-refs';
 import { defineConditionalRule, headerOf } from './kit/conditional-rule';
 
 /** Epoch — unambiguously far enough in the past that any real `Last-Modified` is later than it. */
 const FAR_PAST = new Date(0);
-
-/** True for a 2xx (success) status. */
-function isSuccess(status: number): boolean {
-  return status >= 200 && status <= 299;
-}
 
 /**
  * C7 — §5.3.7 SHOULD: on a GET whose `If-Modified-Since` equals the discovered `Last-Modified`
@@ -43,7 +39,7 @@ export const ifModifiedSinceNotModified = defineConditionalRule({
     return null;
   },
   build(discovered) {
-    const lastModified = headerOf(discovered[0], LAST_MODIFIED) ?? '';
+    const lastModified = headerOf(discovered[0], LAST_MODIFIED)!;
     return [
       { headers: [{ name: IF_MODIFIED_SINCE, value: lastModified }] },
       { headers: [{ name: IF_MODIFIED_SINCE, value: formatImfFixdate(FAR_PAST) }] },
@@ -53,7 +49,7 @@ export const ifModifiedSinceNotModified = defineConditionalRule({
     const disqualifying = probed[0]?.status;
     const contrast = probed[1]?.status;
     if (disqualifying === 304) {
-      if (contrast !== undefined && isSuccess(contrast)) {
+      if (contrast !== undefined && isOkStatus(contrast)) {
         return { verdict: Verdict.Pass };
       }
       if (contrast === 304) {
@@ -61,7 +57,7 @@ export const ifModifiedSinceNotModified = defineConditionalRule({
       }
       return { verdict: Verdict.Skip, reason: SkipReason.EndpointUnstable };
     }
-    if (disqualifying !== undefined && isSuccess(disqualifying)) {
+    if (disqualifying !== undefined && isOkStatus(disqualifying)) {
       return { verdict: Verdict.Warn };
     }
     return { verdict: Verdict.Skip, reason: SkipReason.EndpointUnstable };

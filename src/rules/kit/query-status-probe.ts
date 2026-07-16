@@ -5,6 +5,7 @@ import type { NormativeRef, Taxonomy } from '../../standards/interfaces';
 import { InconclusiveReason, Rule, SkipReason, Verdict } from '../../core/contract/enums';
 import { parseResponseHead } from '../../http/decode/head-parse';
 import { craftRequest } from '../../http/encode/request';
+import { isServerError } from '../../normative/ok-status';
 import { TerminationCause } from '../../transport/tcp/enums';
 import { appendRawQuery, authorityFor } from './craft-probe';
 
@@ -14,10 +15,6 @@ interface QueryStatusHeuristicSpec {
   readonly tags?: Taxonomy;
   /** The hostile query vector's raw octets (appended verbatim after `?`). */
   readonly rawQuery: string;
-}
-
-function isServerError(statusCode: number): boolean {
-  return statusCode >= 500 && statusCode <= 599;
 }
 
 function isControlStable(statusCode: number): boolean {
@@ -100,5 +97,3 @@ export function defineQueryStatusHeuristic(spec: QueryStatusHeuristicSpec): Rule
     },
   };
 }
-
-export type { QueryStatusHeuristicSpec };

@@ -31,7 +31,7 @@ export const precedenceIfMatchOverIfUnmodifiedSince = defineConditionalRule({
   build(discovered) {
     const lastModified = headerOf(discovered[0], LAST_MODIFIED);
     const time = lastModified === null ? null : parseHttpDate(lastModified);
-    const earlier = formatImfFixdate(addDays(new Date(time ?? 0), -1));
+    const earlier = formatImfFixdate(addDays(new Date(time!), -1));
     return [
       {
         headers: [
