@@ -5,7 +5,7 @@ import { fieldValues } from '../http/decode/fields';
 import { CACHE_CONTROL, CONTENT_LOCATION, DATE, ETAG, EXPIRES, IF_NONE_MATCH, VARY } from '../normative/header-names';
 import { ConditionalClauseId } from '../standards/catalog/conditional-request';
 import { refsFor } from './kit/clause-refs';
-import { defineConditionalRule, headerOf } from './kit/conditional-rule';
+import { defineConditionalRule, etagValidatorGate, headerOf } from './kit/conditional-rule';
 
 /** The `REQUIRED_HEADERS` subset whose exact VALUE must stay identical across the kit's RE-DISCOVER
  *  stability guard: a value drift here (a new `ETag`, a changed `Cache-Control`) means the baseline
@@ -55,13 +55,7 @@ export const notModifiedRequiredHeaders = defineConditionalRule({
   guard: 'validator',
   validatorHeaders: EXACT_VALUE_HEADERS,
   validatorPresenceHeaders: PRESENCE_ONLY_HEADERS,
-  gate(discovered) {
-    const [baseline] = discovered;
-    if (baseline?.status !== 200) {
-      return SkipReason.NoValidator;
-    }
-    return headerOf(baseline, ETAG) === null ? SkipReason.NoValidator : null;
-  },
+  gate: etagValidatorGate,
   build(discovered) {
     return [{ headers: [{ name: IF_NONE_MATCH, value: headerOf(discovered[0], ETAG)! }] }];
   },

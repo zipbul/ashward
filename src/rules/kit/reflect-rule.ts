@@ -4,11 +4,10 @@ import type { NormativeRef, Taxonomy } from '../../standards/interfaces';
 
 import { InconclusiveReason, Rule, SkipReason, Verdict } from '../../core/contract/enums';
 import { decodeBody } from '../../http/decode/body';
-import { parseResponseHead } from '../../http/decode/head-parse';
 import { craftRequest } from '../../http/encode/request';
 import { isOkStatus } from '../../normative/ok-status';
-import { TerminationCause } from '../../transport/tcp/enums';
 import { appendRawQuery, authorityFor, stripQuery } from './craft-probe';
+import { classifyExchange } from './probe-run';
 
 const bodyDecoder = new TextDecoder('utf-8', { fatal: false });
 
@@ -76,19 +75,11 @@ export function defineReflectRule(spec: ReflectRuleSpec): RuleDef<HttpRuleContex
       const result = await context.probe(request);
       const evidence = { request, response: result.response, outcome: result.termination };
 
-      if (result.termination === TerminationCause.Unreachable) {
-        return { ruleId: spec.id, verdict: Verdict.Inconclusive, reason: InconclusiveReason.ConnectionRefused, evidence };
+      const classified = classifyExchange(result);
+      if (!classified.ok) {
+        return { ruleId: spec.id, verdict: Verdict.Inconclusive, reason: classified.reason, evidence };
       }
-      const head = parseResponseHead(result.response);
-      if (head === null) {
-        return {
-          ruleId: spec.id,
-          verdict: Verdict.Inconclusive,
-          reason:
-            result.termination === TerminationCause.Timeout ? InconclusiveReason.Timeout : InconclusiveReason.MalformedResponse,
-          evidence,
-        };
-      }
+      const head = classified.head;
       if (!isOkStatus(head.statusLine.statusCode)) {
         return { ruleId: spec.id, verdict: Verdict.Skip, reason: SkipReason.EndpointNotReflecting, evidence };
       }

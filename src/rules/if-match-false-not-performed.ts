@@ -1,10 +1,9 @@
-import { Rule, SkipReason, Verdict } from '../core/contract/enums';
+import { Rule, Verdict } from '../core/contract/enums';
 import { ETAG, IF_MATCH } from '../normative/header-names';
 import { WILDCARD } from '../normative/literals';
-import { isOkStatus } from '../normative/ok-status';
 import { ConditionalClauseId } from '../standards/catalog/conditional-request';
 import { refsFor } from './kit/clause-refs';
-import { defineConditionalRule, headerOf } from './kit/conditional-rule';
+import { defineConditionalRule, differentialJudge, etagValidatorGate } from './kit/conditional-rule';
 
 /**
  * C4 — §5.1.3 MUST NOT: on a GET whose `If-Match` names an entity-tag that cannot match the
@@ -21,31 +20,9 @@ export const ifMatchFalseNotPerformed = defineConditionalRule({
   normative: refsFor(ConditionalClauseId.IfMatchFalseNotPerformed),
   guard: 'validator',
   validatorHeaders: [ETAG],
-  gate(discovered) {
-    const [baseline] = discovered;
-    if (baseline?.status !== 200) {
-      return SkipReason.NoValidator;
-    }
-    return headerOf(baseline, ETAG) === null ? SkipReason.NoValidator : null;
-  },
+  gate: etagValidatorGate,
   build() {
     return [{ headers: [{ name: IF_MATCH, value: '"no-match"' }] }, { headers: [{ name: IF_MATCH, value: WILDCARD }] }];
   },
-  judge(_discovered, probed) {
-    const disqualifying = probed[0]?.status;
-    const contrast = probed[1]?.status;
-    if (disqualifying === 412) {
-      if (contrast !== undefined && isOkStatus(contrast)) {
-        return { verdict: Verdict.Pass };
-      }
-      if (contrast === 412) {
-        return { verdict: Verdict.Fail };
-      }
-      return { verdict: Verdict.Skip, reason: SkipReason.EndpointUnstable };
-    }
-    if (disqualifying !== undefined && isOkStatus(disqualifying)) {
-      return { verdict: Verdict.Fail };
-    }
-    return { verdict: Verdict.Skip, reason: SkipReason.EndpointUnstable };
-  },
+  judge: (_discovered, probed) => differentialJudge({ trigger: 412, disqualify: Verdict.Fail }, probed),
 });

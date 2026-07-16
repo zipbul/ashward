@@ -8,11 +8,12 @@ import type { ProbeResult } from '../../transport/tcp/interfaces';
 import { InconclusiveReason, Rule, SkipReason, Verdict } from '../../core/contract/enums';
 import { decodeBody } from '../../http/decode/body';
 import { fieldValues, singleFieldValue } from '../../http/decode/fields';
-import { parseResponseHead } from '../../http/decode/head-parse';
 import { craftRequest } from '../../http/encode/request';
-import { isServerError } from '../../normative/ok-status';
-import { TerminationCause } from '../../transport/tcp/enums';
+import { ETAG, LAST_MODIFIED } from '../../normative/header-names';
+import { parseHttpDate } from '../../normative/http-date';
+import { isOkStatus, isServerError } from '../../normative/ok-status';
 import { authorityFor } from './craft-probe';
+import { classifyExchange } from './probe-run';
 
 /** ashward never mutates the target it probes (PLAN §0): a conditional-request probe can only ever
  *  be one of ashward's three supported safe methods — GET, HEAD, OPTIONS (TRACE is out of scope,
@@ -47,53 +48,13 @@ interface ConditionalJudgment {
   readonly reason?: ClauseReason;
 }
 
-type ConditionalGuard = 'validator' | 'existence';
-
-interface ConditionalRuleSpec {
+/** Fields every conditional rule spec shares, regardless of which stability guard (PLAN §2f step 4
+ *  — a fresh RE-DISCOVER round-trip, never the already-fetched exchanges alone) re-confirms a
+ *  disqualifying verdict. */
+interface ConditionalRuleSpecBase {
   readonly id: Rule;
   readonly normative: readonly NormativeRef[];
   readonly tags?: Taxonomy;
-  /** Which stability guard re-confirms a disqualifying verdict (PLAN §2f step 4 — a fresh RE-
-   *  DISCOVER round-trip, never the already-fetched exchanges alone):
-   *  - `'validator'` (C1, C3-C12): the rule's own `gate`/`judge` read the validator header(s) named in
-   *    `validatorHeaders` off `discovered`/`probed` directly (via `headerOf`); the kit re-sends
-   *    `discoverProbes` and Skips(EndpointUnstable) unless the fresh baseline's status AND every
-   *    named validator header are byte-identical to the original discover. This is a two-way split,
-   *    not a single set: `validatorHeaders` re-confirms by EXACT VALUE, while any header a rule also
-   *    lists in `validatorPresenceHeaders` (e.g. `Date`, which legitimately advances every second on
-   *    a live origin) is re-confirmed by PRESENCE only — see `validatorPresenceHeaders`'s doc before
-   *    adding a header to either set, and never move a presence-only header into `validatorHeaders`
-   *    (that would downgrade an unrelated, genuine Fail to Skip merely because the clock ticked).
-   *  - `'existence'` (C2, C13, C14): the discover probes (≥2, sent here as `discoverProbes`) must
-   *    agree on `expectedBaselineStatus` before `gate`/`build` run at all, AND the kit re-sends them
-   *    after a disqualifying judgment to confirm the SAME status still holds (drift → Skip). */
-  readonly guard: ConditionalGuard;
-  /** The discover probe(s) sent before `gate`/`build` run, and again (verbatim) as the RE-DISCOVER
-   *  round-trip before a disqualifying `Fail`/`Warn` stands. Default: one safe `GET target.path`. The
-   *  existence guard's rules (C2/C13/C14) supply ≥2 probes here so the "×2 baseline" agreement is
-   *  itself part of discovery, per PLAN §2f/§5. */
-  readonly discoverProbes?: readonly ConditionalProbeSpec[];
-  /** Validator-guard rules record the response header name(s) their `gate`/`judge` key off — the kit
-   *  reads these to drive the RE-DISCOVER drift comparison (see `guard`'s doc): every value sent
-   *  under each name must be BYTE-IDENTICAL between discover and re-discover. Required (may be
-   *  empty) when `guard: 'validator'`. Do NOT list a header here whose VALUE legitimately varies
-   *  between requests on a live, otherwise-unchanged origin (e.g. `Date`) — that belongs in
-   *  `validatorPresenceHeaders` instead, or its natural drift would downgrade an unrelated, genuine
-   *  Fail/Warn to Skip(EndpointUnstable) on every re-discover. */
-  readonly validatorHeaders?: readonly string[];
-  /** Validator-guard only: header name(s) whose RE-DISCOVER drift check is PRESENCE-only, not exact
-   *  value — e.g. `Date` (RFC 9110 §6.6.1), which legitimately advances every second on a live
-   *  origin. A name here is confirmed merely "still sent, if it was sent at discover time"; its
-   *  value is never compared. Without this split, a validator-guard rule that (rightly) depends on
-   *  `Date`'s PRESENCE for its own judge logic would have to list `Date` in `validatorHeaders` to get
-   *  it re-checked at all — which would then downgrade every disqualifying verdict to
-   *  Skip(EndpointUnstable) as soon as the clock ticked between discover and re-discover, even when
-   *  the actual judged condition (e.g. a missing `Vary`) hasn't drifted at all. */
-  readonly validatorPresenceHeaders?: readonly string[];
-  /** Existence-guard only: the baseline status predicate every discover exchange must agree on —
-   *  e.g. "is 200" (C2), "is not 304/412" (C13), "is not 2xx/304/412" (C14). Required when
-   *  `guard: 'existence'`. */
-  readonly expectedBaselineStatus?: (status: number) => boolean;
   /** Whether the discovered baseline(s) qualify the rule to proceed at all — return a `SkipReason`
    *  to bail out immediately (e.g. `NoValidator`, `NotApplicable`), or `null` to proceed to `build`. */
   gate(discovered: readonly ConditionalExchange[]): SkipReason | null;
@@ -104,6 +65,55 @@ interface ConditionalRuleSpec {
   judge(discovered: readonly ConditionalExchange[], probed: readonly ConditionalExchange[]): ConditionalJudgment;
 }
 
+/** `guard: 'validator'` (C1, C3-C12): the rule's own `gate`/`judge` read the validator header(s)
+ *  named in `validatorHeaders` off `discovered`/`probed` directly (via `headerOf`); the kit
+ *  re-sends `discoverProbes` and Skips(EndpointUnstable) unless the fresh baseline's status AND
+ *  every named validator header are byte-identical to the original discover. This is a two-way
+ *  split, not a single set: `validatorHeaders` re-confirms by EXACT VALUE, while any header a rule
+ *  also lists in `validatorPresenceHeaders` (e.g. `Date`, which legitimately advances every second
+ *  on a live origin) is re-confirmed by PRESENCE only — see `validatorPresenceHeaders`'s doc before
+ *  adding a header to either set, and never move a presence-only header into `validatorHeaders`
+ *  (that would downgrade an unrelated, genuine Fail to Skip merely because the clock ticked). */
+interface ValidatorGuardSpec extends ConditionalRuleSpecBase {
+  readonly guard: 'validator';
+  /** The discover probe(s) sent before `gate`/`build` run, and again (verbatim) as the RE-DISCOVER
+   *  round-trip before a disqualifying `Fail`/`Warn` stands. Default: one safe `GET target.path`. */
+  readonly discoverProbes?: readonly ConditionalProbeSpec[];
+  /** The response header name(s) `gate`/`judge` key off — the kit reads these to drive the
+   *  RE-DISCOVER drift comparison (see this interface's doc): every value sent under each name must
+   *  be BYTE-IDENTICAL between discover and re-discover. May be empty, but always present — a
+   *  validator-guard rule with nothing to re-confirm still says so explicitly, never by omission.
+   *  Do NOT list a header here whose VALUE legitimately varies between requests on a live,
+   *  otherwise-unchanged origin (e.g. `Date`) — that belongs in `validatorPresenceHeaders` instead,
+   *  or its natural drift would downgrade an unrelated, genuine Fail/Warn to Skip(EndpointUnstable)
+   *  on every re-discover. */
+  readonly validatorHeaders: readonly string[];
+  /** Header name(s) whose RE-DISCOVER drift check is PRESENCE-only, not exact value — e.g. `Date`
+   *  (RFC 9110 §6.6.1), which legitimately advances every second on a live origin. A name here is
+   *  confirmed merely "still sent, if it was sent at discover time"; its value is never compared.
+   *  Without this split, a validator-guard rule that (rightly) depends on `Date`'s PRESENCE for its
+   *  own judge logic would have to list `Date` in `validatorHeaders` to get it re-checked at all —
+   *  which would then downgrade every disqualifying verdict to Skip(EndpointUnstable) as soon as
+   *  the clock ticked between discover and re-discover, even when the actual judged condition
+   *  (e.g. a missing `Vary`) hasn't drifted at all. */
+  readonly validatorPresenceHeaders?: readonly string[];
+}
+
+/** `guard: 'existence'` (C2, C13, C14): the discover probes must agree on `expectedBaselineStatus`
+ *  before `gate`/`build` run at all, AND the kit re-sends them after a disqualifying judgment to
+ *  confirm the SAME status still holds (drift → Skip). */
+interface ExistenceGuardSpec extends ConditionalRuleSpecBase {
+  readonly guard: 'existence';
+  /** The discover probes (≥2 — the "×2 baseline" agreement is itself part of discovery, per PLAN
+   *  §2f/§5) sent before `gate`/`build` run, and again (verbatim) as the RE-DISCOVER round-trip. */
+  readonly discoverProbes: readonly ConditionalProbeSpec[];
+  /** The baseline status predicate every discover exchange must agree on — e.g. "is 200" (C2), "is
+   *  not 304/412" (C13), "is not 2xx/304/412" (C14). */
+  readonly expectedBaselineStatus: (status: number) => boolean;
+}
+
+type ConditionalRuleSpec = ValidatorGuardSpec | ExistenceGuardSpec;
+
 /** The single value of `name` on `exchange`'s head, or `null` when `exchange` is undefined, the
  *  header is absent, or it was repeated — the same collapsing `singleFieldValue` already applies,
  *  lifted to tolerate a possibly-missing `discovered[n]` under `noUncheckedIndexedAccess`. Every
@@ -111,6 +121,63 @@ interface ConditionalRuleSpec {
  *  `discovered[0]?.head ?? {...}` fallback. */
 function headerOf(exchange: ConditionalExchange | undefined, name: string): string | null {
   return exchange === undefined ? null : singleFieldValue(exchange.head, name);
+}
+
+/** The shared two-probe differential judge for every rule whose disqualifying condition is "probe 0
+ *  (the disqualifying condition) elicits `trigger`, while probe 1 (the STANDARD's own contrast case)
+ *  elicits an ok status" — C1 (ETag match → 304 vs. a never-matching contrast → 2xx), C4 (If-Match
+ *  no-match → 412 vs. `If-Match: *` → 2xx), C6 (earlier-than-L → 412 vs. equal-to-L → 2xx), and C7
+ *  (IMS == L → 304 vs. a far-past IMS → 2xx). Passes only when probe 0 hits `trigger` AND probe 1 is
+ *  ok — a server that answers `trigger` unconditionally (ignoring the probed field's value entirely)
+ *  would otherwise false-Pass on probe 0 alone, so that shape instead settles as `disqualify` (Fail
+ *  or Warn, per the rule's own MUST/SHOULD severity). When probe 0 doesn't land on `trigger` at all,
+ *  an ok status there is itself the disqualifying shape (`disqualify`); anything else is not a
+ *  reliable enough signal either way (Skip(EndpointUnstable)). */
+function differentialJudge(
+  options: { readonly trigger: number; readonly disqualify: Verdict },
+  probed: readonly ConditionalExchange[],
+): ConditionalJudgment {
+  const disqualifying = probed[0]?.status;
+  const contrast = probed[1]?.status;
+  if (disqualifying === options.trigger) {
+    if (contrast !== undefined && isOkStatus(contrast)) {
+      return { verdict: Verdict.Pass };
+    }
+    if (contrast === options.trigger) {
+      return { verdict: options.disqualify };
+    }
+    return { verdict: Verdict.Skip, reason: SkipReason.EndpointUnstable };
+  }
+  if (disqualifying !== undefined && isOkStatus(disqualifying)) {
+    return { verdict: options.disqualify };
+  }
+  return { verdict: Verdict.Skip, reason: SkipReason.EndpointUnstable };
+}
+
+/** The ETag-validator gate shared by every rule whose only prerequisite is a discovered `ETag` (C1,
+ *  C4, C11, C12): Skip(NoValidator) unless the discovered baseline is a 200 that sent one. */
+function etagValidatorGate(discovered: readonly ConditionalExchange[]): SkipReason | null {
+  const [baseline] = discovered;
+  if (baseline?.status !== 200) {
+    return SkipReason.NoValidator;
+  }
+  return headerOf(baseline, ETAG) === null ? SkipReason.NoValidator : null;
+}
+
+/** The Last-Modified-validator gate shared by every rule whose only prerequisite is a discovered,
+ *  parseable `Last-Modified` (C6, C7, C10): Skip(NoValidator) unless the discovered baseline is a
+ *  200 that sent a `Last-Modified` value `parseHttpDate` can actually parse — a malformed value
+ *  never qualifies as a validator, matching §1.3/§1.4's own parse requirement. */
+function lastModifiedValidatorGate(discovered: readonly ConditionalExchange[]): SkipReason | null {
+  const [baseline] = discovered;
+  if (baseline?.status !== 200) {
+    return SkipReason.NoValidator;
+  }
+  const lastModified = headerOf(baseline, LAST_MODIFIED);
+  if (lastModified === null || parseHttpDate(lastModified) === null) {
+    return SkipReason.NoValidator;
+  }
+  return null;
 }
 
 function craftConditionalProbe(target: HttpTarget, spec: ConditionalProbeSpec): Uint8Array {
@@ -141,17 +208,12 @@ async function sendBatch(context: HttpRuleContext, specs: readonly ConditionalPr
 
   const exchanges: ConditionalExchange[] = [];
   for (const [index, result] of probed.entries()) {
-    if (result.termination === TerminationCause.Unreachable) {
-      return { requests, probed, outcome: { ok: false, reason: InconclusiveReason.ConnectionRefused, index } };
+    const classified = classifyExchange(result);
+    if (!classified.ok) {
+      return { requests, probed, outcome: { ok: false, reason: classified.reason, index } };
     }
-    const head = parseResponseHead(result.response);
-    if (head === null) {
-      const reason =
-        result.termination === TerminationCause.Timeout ? InconclusiveReason.Timeout : InconclusiveReason.MalformedResponse;
-      return { requests, probed, outcome: { ok: false, reason, index } };
-    }
-    const { content, complete } = decodeBody(result.response, head, result.termination);
-    exchanges.push({ status: head.statusLine.statusCode, head, content, complete });
+    const { content, complete } = decodeBody(result.response, classified.head, result.termination);
+    exchanges.push({ status: classified.head.statusLine.statusCode, head: classified.head, content, complete });
   }
   return { requests, probed, outcome: { ok: true, exchanges } };
 }
@@ -267,7 +329,6 @@ export function defineConditionalRule(spec: ConditionalRuleSpec): RuleDef<HttpRu
     ...(spec.tags !== undefined ? { tags: spec.tags } : {}),
 
     async run(context: HttpRuleContext): Promise<ClauseResult> {
-      const expectedBaselineStatus = spec.expectedBaselineStatus ?? (() => true);
       const discoverSpecs = spec.discoverProbes ?? [{ method: 'GET' as const, headers: [] }];
       const discoverBatch = await sendBatch(context, discoverSpecs);
       if (!discoverBatch.outcome.ok) {
@@ -283,7 +344,7 @@ export function defineConditionalRule(spec: ConditionalRuleSpec): RuleDef<HttpRu
           ...withEvidence(lastEvidence(discoverBatch)),
         };
       }
-      if (spec.guard === 'existence' && !existenceStable(expectedBaselineStatus, discovered)) {
+      if (spec.guard === 'existence' && !existenceStable(spec.expectedBaselineStatus, discovered)) {
         return {
           ruleId: spec.id,
           verdict: Verdict.Skip,
@@ -338,8 +399,8 @@ export function defineConditionalRule(spec: ConditionalRuleSpec): RuleDef<HttpRu
 
       const stable =
         spec.guard === 'existence'
-          ? existenceStable(expectedBaselineStatus, reconfirmed) && reconfirmed[0]?.status === discovered[0]?.status
-          : validatorStable(spec.validatorHeaders ?? [], spec.validatorPresenceHeaders ?? [], discovered[0], reconfirmed[0]);
+          ? existenceStable(spec.expectedBaselineStatus, reconfirmed) && reconfirmed[0]?.status === discovered[0]?.status
+          : validatorStable(spec.validatorHeaders, spec.validatorPresenceHeaders ?? [], discovered[0], reconfirmed[0]);
       if (!stable) {
         return { ruleId: spec.id, verdict: Verdict.Skip, reason: SkipReason.EndpointUnstable, ...reconfirmEvidence };
       }
@@ -348,5 +409,5 @@ export function defineConditionalRule(spec: ConditionalRuleSpec): RuleDef<HttpRu
   };
 }
 
-export { headerOf };
+export { differentialJudge, etagValidatorGate, headerOf, lastModifiedValidatorGate };
 export type { ConditionalExchange };

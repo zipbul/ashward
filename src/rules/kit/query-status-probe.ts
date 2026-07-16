@@ -8,6 +8,7 @@ import { craftRequest } from '../../http/encode/request';
 import { isServerError } from '../../normative/ok-status';
 import { TerminationCause } from '../../transport/tcp/enums';
 import { appendRawQuery, authorityFor } from './craft-probe';
+import { classifyExchange } from './probe-run';
 
 interface QueryStatusHeuristicSpec {
   readonly id: Rule;
@@ -70,28 +71,12 @@ export function defineQueryStatusHeuristic(spec: QueryStatusHeuristicSpec): Rule
 
       const hostileResult = await context.probe(hostileRequest);
       const hostileEvidence = { request: hostileRequest, response: hostileResult.response, outcome: hostileResult.termination };
-      if (hostileResult.termination === TerminationCause.Unreachable) {
-        return {
-          ruleId: spec.id,
-          verdict: Verdict.Inconclusive,
-          reason: InconclusiveReason.ConnectionRefused,
-          evidence: hostileEvidence,
-        };
-      }
-      const hostileHead = parseResponseHead(hostileResult.response);
-      if (hostileHead === null) {
-        return {
-          ruleId: spec.id,
-          verdict: Verdict.Inconclusive,
-          reason:
-            hostileResult.termination === TerminationCause.Timeout
-              ? InconclusiveReason.Timeout
-              : InconclusiveReason.MalformedResponse,
-          evidence: hostileEvidence,
-        };
+      const hostileClassified = classifyExchange(hostileResult);
+      if (!hostileClassified.ok) {
+        return { ruleId: spec.id, verdict: Verdict.Inconclusive, reason: hostileClassified.reason, evidence: hostileEvidence };
       }
 
-      return isServerError(hostileHead.statusLine.statusCode)
+      return isServerError(hostileClassified.head.statusLine.statusCode)
         ? { ruleId: spec.id, verdict: Verdict.Warn, evidence: hostileEvidence }
         : { ruleId: spec.id, verdict: Verdict.Pass, evidence: hostileEvidence };
     },

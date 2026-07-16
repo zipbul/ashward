@@ -3,13 +3,12 @@ import { test, expect } from 'bun:test';
 import type { HttpTarget } from '../http/context';
 
 import { SkipReason, Verdict } from '../core/contract/enums';
-import { replay } from '../testkit/replay';
+import { replay, res } from '../testkit/replay';
 import { preflightOkStatus } from './preflight-ok-status';
 
 const TARGET: HttpTarget = { host: 'origin.test', port: 80, path: '/', timeoutMs: 500 };
-const head = (status: string, fields: string): string => `HTTP/1.1 ${status}\r\n${fields}\r\n\r\n`;
 const run = async (status: string, fields: string) =>
-  preflightOkStatus.run({ probe: replay(head(status, fields)), target: TARGET });
+  preflightOkStatus.run({ probe: replay(res(status, fields)), target: TARGET });
 
 const GRANT = 'Access-Control-Allow-Origin: https://x.test';
 

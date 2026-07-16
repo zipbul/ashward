@@ -1,10 +1,9 @@
-import { Rule, SkipReason, Verdict } from '../core/contract/enums';
+import { Rule, Verdict } from '../core/contract/enums';
 import { IF_MODIFIED_SINCE, LAST_MODIFIED } from '../normative/header-names';
-import { formatImfFixdate, parseHttpDate } from '../normative/http-date';
-import { isOkStatus } from '../normative/ok-status';
+import { formatImfFixdate } from '../normative/http-date';
 import { ConditionalClauseId } from '../standards/catalog/conditional-request';
 import { refsFor } from './kit/clause-refs';
-import { defineConditionalRule, headerOf } from './kit/conditional-rule';
+import { defineConditionalRule, differentialJudge, headerOf, lastModifiedValidatorGate } from './kit/conditional-rule';
 
 /** Epoch — unambiguously far enough in the past that any real `Last-Modified` is later than it. */
 const FAR_PAST = new Date(0);
@@ -27,17 +26,7 @@ export const ifModifiedSinceNotModified = defineConditionalRule({
   normative: refsFor(ConditionalClauseId.IfModifiedSinceNotModified),
   guard: 'validator',
   validatorHeaders: [LAST_MODIFIED],
-  gate(discovered) {
-    const [baseline] = discovered;
-    if (baseline?.status !== 200) {
-      return SkipReason.NoValidator;
-    }
-    const lastModified = headerOf(baseline, LAST_MODIFIED);
-    if (lastModified === null || parseHttpDate(lastModified) === null) {
-      return SkipReason.NoValidator;
-    }
-    return null;
-  },
+  gate: lastModifiedValidatorGate,
   build(discovered) {
     const lastModified = headerOf(discovered[0], LAST_MODIFIED)!;
     return [
@@ -45,21 +34,5 @@ export const ifModifiedSinceNotModified = defineConditionalRule({
       { headers: [{ name: IF_MODIFIED_SINCE, value: formatImfFixdate(FAR_PAST) }] },
     ];
   },
-  judge(_discovered, probed) {
-    const disqualifying = probed[0]?.status;
-    const contrast = probed[1]?.status;
-    if (disqualifying === 304) {
-      if (contrast !== undefined && isOkStatus(contrast)) {
-        return { verdict: Verdict.Pass };
-      }
-      if (contrast === 304) {
-        return { verdict: Verdict.Warn };
-      }
-      return { verdict: Verdict.Skip, reason: SkipReason.EndpointUnstable };
-    }
-    if (disqualifying !== undefined && isOkStatus(disqualifying)) {
-      return { verdict: Verdict.Warn };
-    }
-    return { verdict: Verdict.Skip, reason: SkipReason.EndpointUnstable };
-  },
+  judge: (_discovered, probed) => differentialJudge({ trigger: 304, disqualify: Verdict.Warn }, probed),
 });

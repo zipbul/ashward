@@ -2,7 +2,7 @@ import { InconclusiveReason, Rule, SkipReason, Verdict } from '../core/contract/
 import { ETAG, IF_NONE_MATCH } from '../normative/header-names';
 import { ConditionalClauseId } from '../standards/catalog/conditional-request';
 import { refsFor } from './kit/clause-refs';
-import { defineConditionalRule, headerOf } from './kit/conditional-rule';
+import { defineConditionalRule, etagValidatorGate, headerOf } from './kit/conditional-rule';
 
 /**
  * C12 — §6.1.4 Unmarked: a 304 response terminates at the header section — it MUST NOT carry
@@ -15,13 +15,7 @@ export const notModifiedNoContent = defineConditionalRule({
   normative: refsFor(ConditionalClauseId.NotModifiedNoContent),
   guard: 'validator',
   validatorHeaders: [ETAG],
-  gate(discovered) {
-    const [baseline] = discovered;
-    if (baseline?.status !== 200) {
-      return SkipReason.NoValidator;
-    }
-    return headerOf(baseline, ETAG) === null ? SkipReason.NoValidator : null;
-  },
+  gate: etagValidatorGate,
   build(discovered) {
     return [{ headers: [{ name: IF_NONE_MATCH, value: headerOf(discovered[0], ETAG)! }] }];
   },

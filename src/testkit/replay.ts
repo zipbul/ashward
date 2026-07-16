@@ -19,6 +19,13 @@ export function res(status: string, fields = ''): string {
   return `HTTP/1.1 ${status}\r\n${fields}\r\n\r\n`;
 }
 
+/** A raw `HTTP/1.1 {status}` response head carrying `Content-Type: application/json` and no other
+ *  fields, for handing to `replay()`/`capturingProbe()` — the canonical fixture the query-parser
+ *  reflect-rule specs build their JSON pair-list echoes on. */
+export function jsonHead(status: string): string {
+  return `HTTP/1.1 ${status}\r\nContent-Type: application/json\r\n\r\n`;
+}
+
 /** A raw `HTTP/1.1 200 OK` response head with a caller-built field block, for handing to `replay()`
  *  — the canonical fixture the CORS/token-list rule specs build on. */
 export function head(fields: string): string {

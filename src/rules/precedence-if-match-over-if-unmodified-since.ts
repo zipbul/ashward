@@ -4,7 +4,7 @@ import { addDays, formatImfFixdate, parseHttpDate } from '../normative/http-date
 import { WILDCARD } from '../normative/literals';
 import { ConditionalClauseId } from '../standards/catalog/conditional-request';
 import { refsFor } from './kit/clause-refs';
-import { defineConditionalRule, headerOf } from './kit/conditional-rule';
+import { defineConditionalRule, headerOf, lastModifiedValidatorGate } from './kit/conditional-rule';
 
 /**
  * C10 — §4.3 MUST: `If-Unmodified-Since` is ignored when `If-Match` is present. The probe pairs
@@ -17,17 +17,7 @@ export const precedenceIfMatchOverIfUnmodifiedSince = defineConditionalRule({
   normative: refsFor(ConditionalClauseId.PrecedenceIfMatchOverIfUnmodifiedSince),
   guard: 'validator',
   validatorHeaders: [LAST_MODIFIED],
-  gate(discovered) {
-    const [baseline] = discovered;
-    if (baseline?.status !== 200) {
-      return SkipReason.NoValidator;
-    }
-    const lastModified = headerOf(baseline, LAST_MODIFIED);
-    if (lastModified === null || parseHttpDate(lastModified) === null) {
-      return SkipReason.NoValidator;
-    }
-    return null;
-  },
+  gate: lastModifiedValidatorGate,
   build(discovered) {
     const lastModified = headerOf(discovered[0], LAST_MODIFIED);
     const time = lastModified === null ? null : parseHttpDate(lastModified);
