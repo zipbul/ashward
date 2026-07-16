@@ -3,7 +3,7 @@ import { IF_MODIFIED_SINCE, LAST_MODIFIED } from '../normative/header-names';
 import { formatAsctime, formatImfFixdate, formatRfc850, parseHttpDate, resolveRfc850Year } from '../normative/http-date';
 import { ConditionalClauseId } from '../standards/catalog/conditional-request';
 import { refsFor } from './kit/clause-refs';
-import { defineConditionalRule, headerOf } from './kit/conditional-rule';
+import { defineConditionalRule, headerOf, lastModifiedValidatorGate } from './kit/conditional-rule';
 
 /** True iff `instant`'s full year round-trips through RFC 9110 §5.6.7's rfc850 2-digit-year +
  *  50-year rule at `now` (via `resolveRfc850Year`, which compares the FULL candidate instant to
@@ -42,18 +42,13 @@ export const httpDateFormatsAccepted = defineConditionalRule({
   guard: 'validator',
   validatorHeaders: [LAST_MODIFIED],
   gate(discovered) {
-    const [baseline] = discovered;
-    if (baseline?.status !== 200) {
-      return SkipReason.NoValidator;
+    const shared = lastModifiedValidatorGate(discovered);
+    if (shared !== null) {
+      return shared;
     }
-    const lastModified = headerOf(baseline, LAST_MODIFIED);
-    if (lastModified === null) {
-      return SkipReason.NoValidator;
-    }
-    const time = parseHttpDate(lastModified);
-    if (time === null) {
-      return SkipReason.NoValidator;
-    }
+    // lastModifiedValidatorGate already confirmed a 200 baseline with a parseable Last-Modified.
+    const lastModified = headerOf(discovered[0], LAST_MODIFIED)!;
+    const time = parseHttpDate(lastModified)!;
     return rfc850RoundTrips(new Date(time), new Date()) ? null : SkipReason.NotApplicable;
   },
   build(discovered) {

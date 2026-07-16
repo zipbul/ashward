@@ -3,13 +3,11 @@ import { ACCEPT_ENCODING } from '../normative/header-names';
 import { zstdWindowSizes } from '../normative/zstd';
 import { CompressionClauseId } from '../standards/catalog/compression';
 import { refsFor } from './kit/clause-refs';
-import { gateOutermostCoding } from './kit/content-encoding';
+import { ACCEPTED_ZSTD_CODINGS, gateOutermostCoding } from './kit/content-encoding';
 import { defineResponseRule } from './kit/response-rule';
 
 /** RFC 9659 §3: a zstd frame over HTTP must not require a Window_Size exceeding 8 MiB. */
 const HTTP_ZSTD_WINDOW_CAP = 8 * 1024 * 1024;
-
-const ACCEPTED_ZSTD_CODINGS = ['zstd'];
 
 /**
  * §5.4 — a `zstd` content-coded response MUST NOT require a decoder window exceeding 8 MiB

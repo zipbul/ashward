@@ -9,11 +9,12 @@ import { InconclusiveReason, Rule, SkipReason, Verdict } from '../../core/contra
 import { decodeBody } from '../../http/decode/body';
 import { fieldValues, singleFieldValue } from '../../http/decode/fields';
 import { craftRequest } from '../../http/encode/request';
+import { isStrongEtag } from '../../normative/etag';
 import { ETAG, LAST_MODIFIED } from '../../normative/header-names';
 import { parseHttpDate } from '../../normative/http-date';
 import { isOkStatus, isServerError } from '../../normative/ok-status';
 import { authorityFor } from './craft-probe';
-import { classifyExchange } from './probe-run';
+import { classifyExchange, withEvidence } from './probe-run';
 
 /** ashward never mutates the target it probes (PLAN §0): a conditional-request probe can only ever
  *  be one of ashward's three supported safe methods — GET, HEAD, OPTIONS (TRACE is out of scope,
@@ -56,8 +57,10 @@ interface ConditionalRuleSpecBase {
   readonly normative: readonly NormativeRef[];
   readonly tags?: Taxonomy;
   /** Whether the discovered baseline(s) qualify the rule to proceed at all — return a `SkipReason`
-   *  to bail out immediately (e.g. `NoValidator`, `NotApplicable`), or `null` to proceed to `build`. */
-  gate(discovered: readonly ConditionalExchange[]): SkipReason | null;
+   *  to bail out immediately (e.g. `NoValidator`, `NotApplicable`), or `null` to proceed to `build`.
+   *  Omit entirely when the guard's own baseline-agreement check (e.g. the existence guard's
+   *  `expectedBaselineStatus`) is the rule's only prerequisite — the kit defaults to `() => null`. */
+  gate?(discovered: readonly ConditionalExchange[]): SkipReason | null;
   /** The conditional probe(s) to send, built from the discovered baseline(s). */
   build(discovered: readonly ConditionalExchange[]): readonly ConditionalProbeSpec[];
   /** Pure: the rule's tentative verdict from the discovered baseline(s) and the conditional
@@ -164,6 +167,22 @@ function etagValidatorGate(discovered: readonly ConditionalExchange[]): SkipReas
   return headerOf(baseline, ETAG) === null ? SkipReason.NoValidator : null;
 }
 
+/** The STRONG-ETag-validator gate shared by every rule whose only prerequisite is a discovered
+ *  STRONG `ETag` (C3, C5): Skip(NoValidator) unless the discovered baseline is a 200 that sent an
+ *  `ETag` at all, then Skip(NotApplicable) — the validator exists, it's just already weak — unless
+ *  that `ETag` is strong. */
+function strongEtagValidatorGate(discovered: readonly ConditionalExchange[]): SkipReason | null {
+  const [baseline] = discovered;
+  if (baseline?.status !== 200) {
+    return SkipReason.NoValidator;
+  }
+  const etag = headerOf(baseline, ETAG);
+  if (etag === null) {
+    return SkipReason.NoValidator;
+  }
+  return isStrongEtag(etag) ? null : SkipReason.NotApplicable;
+}
+
 /** The Last-Modified-validator gate shared by every rule whose only prerequisite is a discovered,
  *  parseable `Last-Modified` (C6, C7, C10): Skip(NoValidator) unless the discovered baseline is a
  *  200 that sent a `Last-Modified` value `parseHttpDate` can actually parse — a malformed value
@@ -216,10 +235,6 @@ async function sendBatch(context: HttpRuleContext, specs: readonly ConditionalPr
     exchanges.push({ status: classified.head.statusLine.statusCode, head: classified.head, content, complete });
   }
   return { requests, probed, outcome: { ok: true, exchanges } };
-}
-
-function withEvidence(evidence: Evidence | undefined): { evidence?: Evidence } {
-  return evidence !== undefined ? { evidence } : {};
 }
 
 function evidenceFor(batch: Batch, index: number): Evidence | undefined {
@@ -329,7 +344,7 @@ export function defineConditionalRule(spec: ConditionalRuleSpec): RuleDef<HttpRu
     ...(spec.tags !== undefined ? { tags: spec.tags } : {}),
 
     async run(context: HttpRuleContext): Promise<ClauseResult> {
-      const discoverSpecs = spec.discoverProbes ?? [{ method: 'GET' as const, headers: [] }];
+      const discoverSpecs = spec.discoverProbes ?? [{ headers: [] }];
       const discoverBatch = await sendBatch(context, discoverSpecs);
       if (!discoverBatch.outcome.ok) {
         return inconclusiveFrom(spec, discoverBatch, discoverBatch.outcome);
@@ -353,7 +368,7 @@ export function defineConditionalRule(spec: ConditionalRuleSpec): RuleDef<HttpRu
         };
       }
 
-      const gateReason = spec.gate(discovered);
+      const gateReason = spec.gate === undefined ? null : spec.gate(discovered);
       if (gateReason !== null) {
         return { ruleId: spec.id, verdict: Verdict.Skip, reason: gateReason, ...withEvidence(lastEvidence(discoverBatch)) };
       }
@@ -409,5 +424,5 @@ export function defineConditionalRule(spec: ConditionalRuleSpec): RuleDef<HttpRu
   };
 }
 
-export { differentialJudge, etagValidatorGate, headerOf, lastModifiedValidatorGate };
+export { differentialJudge, etagValidatorGate, headerOf, lastModifiedValidatorGate, strongEtagValidatorGate };
 export type { ConditionalExchange };

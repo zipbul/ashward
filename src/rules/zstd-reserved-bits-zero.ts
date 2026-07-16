@@ -3,10 +3,8 @@ import { ACCEPT_ENCODING } from '../normative/header-names';
 import { zstdAllReservedBitsZero } from '../normative/zstd';
 import { CompressionClauseId } from '../standards/catalog/compression';
 import { refsFor } from './kit/clause-refs';
-import { gateOutermostCoding } from './kit/content-encoding';
+import { ACCEPTED_ZSTD_CODINGS, gateOutermostCoding } from './kit/content-encoding';
 import { defineResponseRule } from './kit/response-rule';
-
-const ACCEPTED_ZSTD_CODINGS = ['zstd'];
 
 /**
  * §5.4 — a zstd Frame_Header_Descriptor's Unused bit and Reserved bit (RFC 8878

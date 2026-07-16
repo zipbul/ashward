@@ -1,9 +1,8 @@
-import { Rule, SkipReason, Verdict } from '../core/contract/enums';
-import { isStrongEtag } from '../normative/etag';
+import { Rule, Verdict } from '../core/contract/enums';
 import { ETAG, IF_MATCH } from '../normative/header-names';
 import { ConditionalClauseId } from '../standards/catalog/conditional-request';
 import { refsFor } from './kit/clause-refs';
-import { defineConditionalRule, headerOf } from './kit/conditional-rule';
+import { defineConditionalRule, headerOf, strongEtagValidatorGate } from './kit/conditional-rule';
 
 /**
  * C5 — §2.3 MUST: `If-Match` comparison uses STRONG comparison, so a weak version of the discovered
@@ -15,17 +14,7 @@ export const ifMatchStrongComparison = defineConditionalRule({
   normative: refsFor(ConditionalClauseId.IfMatchStrongComparison),
   guard: 'validator',
   validatorHeaders: [ETAG],
-  gate(discovered) {
-    const [baseline] = discovered;
-    if (baseline?.status !== 200) {
-      return SkipReason.NoValidator;
-    }
-    const etag = headerOf(baseline, ETAG);
-    if (etag === null) {
-      return SkipReason.NoValidator;
-    }
-    return isStrongEtag(etag) ? null : SkipReason.NotApplicable;
-  },
+  gate: strongEtagValidatorGate,
   build(discovered) {
     const etag = headerOf(discovered[0], ETAG)!;
     return [{ headers: [{ name: IF_MATCH, value: `W/${etag}` }] }];

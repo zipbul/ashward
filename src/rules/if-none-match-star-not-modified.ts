@@ -17,9 +17,6 @@ export const ifNoneMatchStarNotModified = defineConditionalRule({
   guard: 'existence',
   discoverProbes: [{ headers: [] }, { headers: [] }],
   expectedBaselineStatus: status => status === 200,
-  gate() {
-    return null;
-  },
   build() {
     return [{ headers: [{ name: IF_NONE_MATCH, value: WILDCARD }] }];
   },

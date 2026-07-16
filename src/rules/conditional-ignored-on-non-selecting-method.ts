@@ -30,9 +30,6 @@ export const conditionalIgnoredOnNonSelectingMethod = defineConditionalRule({
     { method: 'OPTIONS', headers: [] },
   ],
   expectedBaselineStatus: isNotPreconditionShaped,
-  gate() {
-    return null;
-  },
   build() {
     return [{ method: 'OPTIONS', headers: [{ name: IF_NONE_MATCH, value: WILDCARD }] }];
   },

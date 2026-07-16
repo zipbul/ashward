@@ -9,17 +9,24 @@ import { InconclusiveReason, Verdict } from '../../core/contract/enums';
 import { parseResponseHead } from '../../http/decode/head-parse';
 import { TerminationCause } from '../../transport/tcp/enums';
 
+/** One classified probe exchange: `ok: true` with its parsed head, or `ok: false` with the
+ *  transport-class inconclusive reason a rule's judge must never see. */
+type ExchangeClassification =
+  | { readonly ok: true; readonly head: ResponseHead }
+  | { readonly ok: false; readonly reason: InconclusiveReason };
+
+/** Either the well-formed exchanges built from every probe (plus an evidence lookup a judgment can
+ *  index into), or the ClauseResult a transport failure already settled — a caller checks `.ok`
+ *  before ever reaching for `.exchanges`. */
+type ProbeRunOutcome<T> =
+  | { readonly ok: true; readonly exchanges: readonly T[]; readonly evidenceAt: (index: number) => Evidence | undefined }
+  | { readonly ok: false; readonly result: ClauseResult };
+
 /** Present `evidence` on a result object only when defined — `Evidence | undefined` collapses to
  *  either `{evidence}` or `{}`, so a spread never writes an explicit `evidence: undefined` key. */
 export function withEvidence(evidence: Evidence | undefined): { evidence?: Evidence } {
   return evidence !== undefined ? { evidence } : {};
 }
-
-/** One classified probe exchange: `ok: true` with its parsed head, or `ok: false` with the
- *  transport-class inconclusive reason a rule's judge must never see. */
-export type ExchangeClassification =
-  | { readonly ok: true; readonly head: ResponseHead }
-  | { readonly ok: false; readonly reason: InconclusiveReason };
 
 /** Classify one raw probe result exactly as every response-rule kit has always done: an unreachable
  *  peer is always ConnectionRefused; an unparseable head is Timeout when the transport itself timed
@@ -46,22 +53,17 @@ export interface Judgment {
   readonly evidenceIndex?: number;
 }
 
-/** Either the well-formed exchanges built from every probe (plus an evidence lookup a judgment can
- *  index into), or the ClauseResult a transport failure already settled — a caller checks `.ok`
- *  before ever reaching for `.exchanges`. */
-export type ProbeRunOutcome<T> =
-  | { readonly ok: true; readonly exchanges: readonly T[]; readonly evidenceAt: (index: number) => Evidence | undefined }
-  | { readonly ok: false; readonly result: ClauseResult };
-
 /**
  * The shared craft/send/classify skeleton every response-rule kit runs: craft each probe (via the
- * caller's `craft`), send them over `probeFn` in order, and classify every exchange. A crafting
- * throw (e.g. a CR/LF-bearing probe value) is a driver-side setup failure — never a throw out of
- * ashward() — surfaced as a connectivity-class inconclusive. Any transport failure on a probe
- * short-circuits with the matching inconclusive ClauseResult, evidenced at the failing probe, and no
- * exchange after it is ever built or judged. Otherwise every classified head (and its raw
- * ProbeResult, for a caller that needs more than the head — e.g. a body decode) is handed to `build`
- * to produce the exchange type its own judge expects.
+ * caller's `craft`), then send EVERY one over `probeFn` in order — sending never stops early, even
+ * once an earlier probe has already failed — and only then classify each exchange, in that same
+ * order. A crafting throw (e.g. a CR/LF-bearing probe value) is a driver-side setup failure — never a
+ * throw out of ashward() — surfaced as a connectivity-class inconclusive. The first transport failure
+ * found while classifying short-circuits classification itself with the matching inconclusive
+ * ClauseResult, evidenced at the failing probe: no exchange at or after that index is ever built or
+ * judged. Otherwise every classified head (and its raw ProbeResult, for a caller that needs more than
+ * the head — e.g. a body decode) is handed to `build` to produce the exchange type its own judge
+ * expects.
  */
 export async function runProbes<Options, T>(
   ruleId: Rule,

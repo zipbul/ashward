@@ -42,9 +42,6 @@ export const conditionalIgnoredOnErrorStatus = defineConditionalRule({
     { headers: [], pathSuffix: NONEXISTENT_PATH_SUFFIX },
   ],
   expectedBaselineStatus: isEligibleErrorStatus,
-  gate() {
-    return null;
-  },
   build() {
     return [{ headers: [{ name: IF_NONE_MATCH, value: WILDCARD }], pathSuffix: NONEXISTENT_PATH_SUFFIX }];
   },
