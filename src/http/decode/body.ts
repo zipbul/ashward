@@ -17,7 +17,7 @@ const INCOMPLETE: DecodedBodyShape = { content: new Uint8Array(0), complete: fal
 function transferCodings(head: ResponseHead): readonly string[] {
   return fieldValues(head, TRANSFER_ENCODING)
     .flatMap(value => value.split(','))
-    .map(coding => coding.trim())
+    .map(coding => trimOws(coding))
     .filter(coding => coding.length > 0);
 }
 
@@ -25,6 +25,22 @@ function transferCodings(head: ResponseHead): readonly string[] {
 function isChunked(codings: readonly string[]): boolean {
   const last = codings[codings.length - 1];
   return last?.toLowerCase() === 'chunked';
+}
+
+/** Strip only SP (0x20) and HTAB (0x09) — the RFC 9110 §5.6.3 OWS set — from both ends of a
+ *  comma-list member. NOT JS `.trim()`, which also eats VT, FF, CR, LF, NBSP, and other Unicode
+ *  whitespace: silently accepting one of those as if it were OWS would recover a length from a
+ *  value a strict parser rejects — a framing parser-differential (request-smuggling risk). */
+function trimOws(value: string): string {
+  let start = 0;
+  let end = value.length;
+  while (start < end && (value[start] === ' ' || value[start] === '\t')) {
+    start += 1;
+  }
+  while (end > start && (value[end - 1] === ' ' || value[end - 1] === '\t')) {
+    end -= 1;
+  }
+  return value.slice(start, end);
 }
 
 type ContentLengthResult =
@@ -52,7 +68,7 @@ function contentLength(head: ResponseHead): ContentLengthResult {
     return { kind: 'absent' };
   }
 
-  const members = values.flatMap(value => value.split(',').map(rawMember => rawMember.trim()));
+  const members = values.flatMap(value => value.split(',').map(rawMember => trimOws(rawMember)));
 
   const lengths = new Set<number>();
   for (const member of members) {

@@ -82,6 +82,23 @@ test('falls through to close-delimited when chunked is not the last coding', () 
   expect(result.complete).toBe(true);
 });
 
+// RFC 9110 §5.6.3: OWS is ONLY SP (0x20) and HTAB (0x09). A coding-splitter that uses JS
+// `.trim()` also eats VT, FF, CR, NBSP, and other Unicode whitespace — silently "recovering" the
+// `chunked` token from a value a strict parser rejects, which is a framing parser-differential
+// (request-smuggling risk): the peer and ashward would disagree on whether the body is
+// chunk-framed at all.
+test('a Transfer-Encoding coding with a trailing form feed after "chunked" (not OWS) is not treated as chunked framing', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\x0C\r\n\r\nraw-bytes-not-dechunked');
+  expect(text(result.content)).toBe('raw-bytes-not-dechunked');
+  expect(result.complete).toBe(true);
+});
+
+test('Transfer-Encoding surrounded by HTAB (real OWS) is still chunked', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding:\tchunked\t\r\n\r\n4\r\nWiki\r\n0\r\n\r\n');
+  expect(text(result.content)).toBe('Wiki');
+  expect(result.complete).toBe(true);
+});
+
 test('yields empty content, incomplete, when the head never reached a body boundary', () => {
   const buffer = bytes('HTTP/1.1 200 OK\r\nContent-Length: 5');
   const head = parseResponseHead(buffer);
@@ -215,6 +232,28 @@ test('a comma-coalesced Content-Length list with a non-numeric member is ambiguo
 
 test('a Content-Length member containing internal whitespace ("5 5") is ambiguous, not absent', () => {
   const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5 5\r\n\r\nhello WORLD');
+  expect(result.complete).toBe(false);
+  expect(result.content.length).toBe(0);
+});
+
+// RFC 9110 §5.6.3: OWS is ONLY SP (0x20) and HTAB (0x09). A member-splitter that uses JS
+// `.trim()` also eats VT, FF, CR, NBSP, and other Unicode whitespace — silently "recovering" a
+// length from a malformed value a strict parser rejects, which is a framing parser-differential
+// (request-smuggling risk): the peer and ashward would disagree on the body boundary.
+test('a Content-Length value with a trailing form feed (not OWS) is ambiguous, not silently trimmed to a valid length', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5\x0C\r\n\r\nhello');
+  expect(result.complete).toBe(false);
+  expect(result.content.length).toBe(0);
+});
+
+test('a Content-Length value with a trailing vertical tab (not OWS) is ambiguous, not silently trimmed to a valid length', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5\x0B\r\n\r\nhello');
+  expect(result.complete).toBe(false);
+  expect(result.content.length).toBe(0);
+});
+
+test('a comma-coalesced Content-Length member wrapped in NBSP (not OWS) is ambiguous, not silently trimmed to a valid length', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5, 5 \r\n\r\nhello WORLD');
   expect(result.complete).toBe(false);
   expect(result.content.length).toBe(0);
 });
