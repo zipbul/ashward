@@ -7,20 +7,28 @@ import { ConditionalClauseId } from '../standards/catalog/conditional-request';
 import { refsFor } from './kit/clause-refs';
 import { defineConditionalRule, headerOf } from './kit/conditional-rule';
 
-/** The §6.1.2 field set a 304 MUST carry whenever the discovered 200 sent it. `Date` is included
- *  (moved out of its former untestable residue, PLAN §2f round-8/round-9): its presence on a 304 is
- *  judged only when the discovered 200 itself sent it — an origin that never sends Date may simply
- *  be clockless (§6.6.1), which is not itself a fault. */
-const REQUIRED_HEADERS: readonly string[] = [ETAG, CACHE_CONTROL, VARY, EXPIRES, CONTENT_LOCATION, DATE];
-
 /** The `REQUIRED_HEADERS` subset whose exact VALUE must stay identical across the kit's RE-DISCOVER
  *  stability guard: a value drift here (a new `ETag`, a changed `Cache-Control`) means the baseline
  *  this rule's tentative Fail was read off no longer holds. `Date` is deliberately excluded — see
- *  `not-modified-required-headers`'s doc and `validatorPresenceHeaders` below; it is re-confirmed by
+ *  `not-modified-required-headers`'s doc and `PRESENCE_ONLY_HEADERS` below; it is re-confirmed by
  *  presence only, because its VALUE legitimately advances every second on a live origin and would
  *  otherwise downgrade an unrelated, genuine required-header Fail to Skip(EndpointUnstable) purely
  *  because the clock ticked between discover and re-discover. */
 const EXACT_VALUE_HEADERS: readonly string[] = [ETAG, CACHE_CONTROL, VARY, EXPIRES, CONTENT_LOCATION];
+
+/** The `REQUIRED_HEADERS` subset whose kit RE-DISCOVER stability check (`validatorPresenceHeaders`,
+ *  see `conditional-rule.ts`'s doc) is presence-only, not exact-value — `Date` (§6.6.1), which
+ *  legitimately advances every second on a live origin. */
+const PRESENCE_ONLY_HEADERS: readonly string[] = [DATE];
+
+/** The §6.1.2 field set a 304 MUST carry whenever the discovered 200 sent it, derived as
+ *  `EXACT_VALUE_HEADERS` ∪ `PRESENCE_ONLY_HEADERS` so the judge's required set and the kit's
+ *  RE-DISCOVER re-confirm set can never silently drift apart — adding a header to one without the
+ *  other is structurally impossible, not just a convention. `Date` is included (moved out of its
+ *  former untestable residue, PLAN §2f round-8/round-9): its presence on a 304 is judged only when
+ *  the discovered 200 itself sent it — an origin that never sends Date may simply be clockless
+ *  (§6.6.1), which is not itself a fault. */
+const REQUIRED_HEADERS: readonly string[] = [...EXACT_VALUE_HEADERS, ...PRESENCE_ONLY_HEADERS];
 
 /** Whether `name` was sent at all on `exchange`'s head — REPEATED-field-aware (unlike `headerOf`/
  *  `singleFieldValue`, which collapses a repeated field to "absent"). A multi-line `Cache-Control`/
@@ -46,7 +54,7 @@ export const notModifiedRequiredHeaders = defineConditionalRule({
   normative: refsFor(ConditionalClauseId.NotModifiedRequiredHeaders),
   guard: 'validator',
   validatorHeaders: EXACT_VALUE_HEADERS,
-  validatorPresenceHeaders: [DATE],
+  validatorPresenceHeaders: PRESENCE_ONLY_HEADERS,
   gate(discovered) {
     const [baseline] = discovered;
     if (baseline?.status !== 200) {
@@ -68,4 +76,4 @@ export const notModifiedRequiredHeaders = defineConditionalRule({
   },
 });
 
-export { REQUIRED_HEADERS };
+export { EXACT_VALUE_HEADERS, PRESENCE_ONLY_HEADERS, REQUIRED_HEADERS };

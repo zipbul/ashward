@@ -57,7 +57,12 @@ interface ConditionalRuleSpec {
    *  - `'validator'` (C1, C3-C12): the rule's own `gate`/`judge` read the validator header(s) named in
    *    `validatorHeaders` off `discovered`/`probed` directly (via `headerOf`); the kit re-sends
    *    `discoverProbes` and Skips(EndpointUnstable) unless the fresh baseline's status AND every
-   *    named validator header are byte-identical to the original discover.
+   *    named validator header are byte-identical to the original discover. This is a two-way split,
+   *    not a single set: `validatorHeaders` re-confirms by EXACT VALUE, while any header a rule also
+   *    lists in `validatorPresenceHeaders` (e.g. `Date`, which legitimately advances every second on
+   *    a live origin) is re-confirmed by PRESENCE only — see `validatorPresenceHeaders`'s doc before
+   *    adding a header to either set, and never move a presence-only header into `validatorHeaders`
+   *    (that would downgrade an unrelated, genuine Fail to Skip merely because the clock ticked).
    *  - `'existence'` (C2, C13, C14): the discover probes (≥2, sent here as `discoverProbes`) must
    *    agree on `expectedBaselineStatus` before `gate`/`build` run at all, AND the kit re-sends them
    *    after a disqualifying judgment to confirm the SAME status still holds (drift → Skip). */
@@ -70,7 +75,10 @@ interface ConditionalRuleSpec {
   /** Validator-guard rules record the response header name(s) their `gate`/`judge` key off — the kit
    *  reads these to drive the RE-DISCOVER drift comparison (see `guard`'s doc): every value sent
    *  under each name must be BYTE-IDENTICAL between discover and re-discover. Required (may be
-   *  empty) when `guard: 'validator'`. */
+   *  empty) when `guard: 'validator'`. Do NOT list a header here whose VALUE legitimately varies
+   *  between requests on a live, otherwise-unchanged origin (e.g. `Date`) — that belongs in
+   *  `validatorPresenceHeaders` instead, or its natural drift would downgrade an unrelated, genuine
+   *  Fail/Warn to Skip(EndpointUnstable) on every re-discover. */
   readonly validatorHeaders?: readonly string[];
   /** Validator-guard only: header name(s) whose RE-DISCOVER drift check is PRESENCE-only, not exact
    *  value — e.g. `Date` (RFC 9110 §6.6.1), which legitimately advances every second on a live

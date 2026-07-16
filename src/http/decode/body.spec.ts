@@ -174,26 +174,34 @@ test('a comma-coalesced Content-Length list with differing members is ambiguous,
   expect(result.complete).toBe(false);
 });
 
-// MAJOR 2 — RFC 9110 §5.6.1: a comma-list's EMPTY members (consecutive/leading/trailing commas) are
-// tolerated and simply skipped, not treated as an invalid member. `5,,5` must still resolve to the
-// value 5 (both non-empty members agree), reading exactly 5 bytes — not silently falling to
-// close-delimited framing (which would over-read the whole buffer).
-test('a comma-coalesced Content-Length list with an EMPTY interior member is read as the agreeing value, not absent', () => {
+// Content-Length is a singleton `1*DIGIT` (RFC 9112 §6.2), NOT an ABNF #list — RFC 9110 §5.6.1's
+// "empty list elements are tolerated and skipped" rule does not apply to it. RFC 9112 §6.3 permits
+// recovery only when the field is a comma-joined set of VALID, non-empty, IDENTICAL integers (the
+// sender-coalesced-duplicates case); an empty member makes the value invalid -> unrecoverable
+// framing -> ambiguous. Silently accepting `5,,5` as `5` is a request-smuggling parser-differential:
+// it must never fall through to close-delimited over-read OR to a lenient accepted value.
+test('a comma-coalesced Content-Length list with an EMPTY interior member is ambiguous, not a recoverable value', () => {
   const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5,,5\r\n\r\nhello WORLD');
-  expect(text(result.content)).toBe('hello');
-  expect(result.complete).toBe(true);
+  expect(result.complete).toBe(false);
+  expect(result.content.length).toBe(0);
 });
 
-test('a comma-coalesced Content-Length list with a TRAILING empty member is read as the value', () => {
+test('a comma-coalesced Content-Length list with a TRAILING empty member is ambiguous, not a recoverable value', () => {
   const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5,\r\n\r\nhello WORLD');
-  expect(text(result.content)).toBe('hello');
-  expect(result.complete).toBe(true);
+  expect(result.complete).toBe(false);
+  expect(result.content.length).toBe(0);
 });
 
-test('a comma-coalesced Content-Length list with a LEADING empty member is read as the value', () => {
+test('a comma-coalesced Content-Length list with a LEADING empty member is ambiguous, not a recoverable value', () => {
   const result = decode('HTTP/1.1 200 OK\r\nContent-Length: ,5\r\n\r\nhello WORLD');
-  expect(text(result.content)).toBe('hello');
-  expect(result.complete).toBe(true);
+  expect(result.complete).toBe(false);
+  expect(result.content.length).toBe(0);
+});
+
+test('a Content-Length value of only commas (all-empty members) is ambiguous, not a recoverable value', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: ,,\r\n\r\nhello WORLD');
+  expect(result.complete).toBe(false);
+  expect(result.content.length).toBe(0);
 });
 
 // An INVALID non-empty member (not a decimal-digit run) must make the message ambiguous — never

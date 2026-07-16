@@ -72,8 +72,12 @@ test('rejects an out-of-range minute (60)', () => {
 // MAJOR 3 — RFC 9110 §5.6.7: time-of-day's second is explicitly 00-60, the 60th value accounting
 // for a positive leap second. A strict parser that rejects `:60` outright would refuse a
 // grammar-valid, RFC-anticipated timestamp an origin is entitled to send.
-test('accepts a leap second (second == 60)', () => {
-  expect(parseHttpDate('Sun, 06 Nov 1994 23:59:60 GMT')).not.toBeNull();
+// De-tautologized: `not.toBeNull()` is satisfied by ANY wrong non-null value (e.g. clamping to
+// :59 instead of rolling forward, or truncating instead of carrying into the next day) — pin the
+// exact instant. `:60` is one second past that same minute's `:59`, which here rolls into the next
+// day: 1994-11-06T23:59:59Z + 1s = 1994-11-07T00:00:00Z.
+test('accepts a leap second (second == 60), resolving to exactly one second past 23:59:59 — 00:00:00 the next day', () => {
+  expect(parseHttpDate('Sun, 06 Nov 1994 23:59:60 GMT')).toBe(Date.UTC(1994, 10, 7, 0, 0, 0));
 });
 
 test('still rejects an out-of-range second (61) — leap seconds go no further than :60', () => {

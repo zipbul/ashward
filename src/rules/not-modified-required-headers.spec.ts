@@ -4,7 +4,12 @@ import type { HttpTarget } from '../http/context';
 
 import { SkipReason, Verdict } from '../core/contract/enums';
 import { replay } from '../testkit/replay';
-import { notModifiedRequiredHeaders as rule } from './not-modified-required-headers';
+import {
+  EXACT_VALUE_HEADERS,
+  notModifiedRequiredHeaders as rule,
+  PRESENCE_ONLY_HEADERS,
+  REQUIRED_HEADERS,
+} from './not-modified-required-headers';
 
 const TARGET: HttpTarget = { host: 'origin.test', port: 80, path: '/', timeoutMs: 500 };
 const res = (status: string, fields = ''): string => `HTTP/1.1 ${status}\r\n${fields}\r\n\r\n`;
@@ -16,6 +21,19 @@ const FULL_METADATA = [
   'Expires: Sun, 06 Nov 1994 08:49:37 GMT',
   'Content-Location: /canonical',
 ].join('\r\n');
+
+// MINOR 5 — REQUIRED_HEADERS (used by the judge to decide what a 304 MUST carry) and
+// EXACT_VALUE_HEADERS ∪ PRESENCE_ONLY_HEADERS (used by the kit's RE-DISCOVER re-confirm guard) must
+// never drift apart: a required header added to one set without the other would silently let a Fail
+// stand un-reconfirmed (or a header the guard re-checks that the judge never actually requires).
+// This is now a structural derivation (REQUIRED_HEADERS = EXACT_VALUE_HEADERS ∪
+// PRESENCE_ONLY_HEADERS), not independent literals — this test pins the invariant so a future
+// refactor back to independent literals fails immediately.
+test('REQUIRED_HEADERS is exactly the union of EXACT_VALUE_HEADERS and PRESENCE_ONLY_HEADERS, with no overlap', () => {
+  const union = new Set([...EXACT_VALUE_HEADERS, ...PRESENCE_ONLY_HEADERS]);
+  expect(union.size).toBe(EXACT_VALUE_HEADERS.length + PRESENCE_ONLY_HEADERS.length);
+  expect(new Set(REQUIRED_HEADERS)).toEqual(union);
+});
 
 // PLAN §5 C11 — §6.1.2 MUST→Fail: elicit 304 (INM:<E>); it MUST carry each of ETag/Cache-Control/
 // Vary/Expires/Content-Location that the discovered 200 sent (missing→Fail). Couldn't elicit
@@ -79,6 +97,24 @@ test('a genuine missing-Vary Fail stands even though Date advances by 1 second b
     res('200 OK', 'ETag: "v1"\r\nVary: Accept-Encoding\r\nDate: Sun, 06 Nov 1994 08:49:38 GMT'), // re-discover: Vary present, Date=T+1s
   );
   expect(out.verdict).toBe(Verdict.Fail);
+});
+
+// MINOR 4 — the guard's `Date` re-confirm is PRESENCE-only, and the case above only pins the
+// tolerated side (VALUE drift, still present both times). The other side of that split — Date
+// genuinely disappearing between discover and re-discover (PRESENCE drift) while an unrelated
+// required header (Vary) is what the 304 actually dropped — must still downgrade the tentative Fail
+// to Skip(EndpointUnstable), same as any other validator-guard drift.
+test('a Date PRESENCE drift (sent at discover, absent at re-discover) downgrades a tentative Fail to Skip(EndpointUnstable)', async () => {
+  const out = await run(
+    res('200 OK', `${FULL_METADATA}\r\nDate: Sun, 06 Nov 1994 08:49:37 GMT`), // discover: full metadata + Date present
+    res(
+      '304 Not Modified',
+      'ETag: "v1"\r\nCache-Control: max-age=60\r\nExpires: Sun, 06 Nov 1994 08:49:37 GMT\r\nContent-Location: /canonical',
+    ), // 304 drops Vary -> tentative Fail
+    res('200 OK', FULL_METADATA), // re-discover: EXACT_VALUE_HEADERS unchanged, but Date is now ABSENT
+  );
+  expect(out.verdict).toBe(Verdict.Skip);
+  expect(out.reason).toBe(SkipReason.EndpointUnstable);
 });
 
 // §6.6.1 clockless guard: when the discovered 200 itself never sent Date, its absence on the 304
