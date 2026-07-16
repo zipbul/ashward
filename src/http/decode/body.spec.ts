@@ -173,3 +173,40 @@ test('a comma-coalesced Content-Length list with differing members is ambiguous,
   const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5, 10\r\n\r\nhello-world-extra');
   expect(result.complete).toBe(false);
 });
+
+// MAJOR 2 — RFC 9110 §5.6.1: a comma-list's EMPTY members (consecutive/leading/trailing commas) are
+// tolerated and simply skipped, not treated as an invalid member. `5,,5` must still resolve to the
+// value 5 (both non-empty members agree), reading exactly 5 bytes — not silently falling to
+// close-delimited framing (which would over-read the whole buffer).
+test('a comma-coalesced Content-Length list with an EMPTY interior member is read as the agreeing value, not absent', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5,,5\r\n\r\nhello WORLD');
+  expect(text(result.content)).toBe('hello');
+  expect(result.complete).toBe(true);
+});
+
+test('a comma-coalesced Content-Length list with a TRAILING empty member is read as the value', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5,\r\n\r\nhello WORLD');
+  expect(text(result.content)).toBe('hello');
+  expect(result.complete).toBe(true);
+});
+
+test('a comma-coalesced Content-Length list with a LEADING empty member is read as the value', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: ,5\r\n\r\nhello WORLD');
+  expect(text(result.content)).toBe('hello');
+  expect(result.complete).toBe(true);
+});
+
+// An INVALID non-empty member (not a decimal-digit run) must make the message ambiguous — never
+// silently bucketed as "absent", which would fall through to close-delimited framing and over-read
+// past the boundary the (partially valid) Content-Length was trying to declare.
+test('a comma-coalesced Content-Length list with a non-numeric member is ambiguous, not absent (no close-delimited over-read)', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5,abc\r\n\r\nhello WORLD');
+  expect(result.complete).toBe(false);
+  expect(result.content.length).toBe(0);
+});
+
+test('a Content-Length member containing internal whitespace ("5 5") is ambiguous, not absent', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5 5\r\n\r\nhello WORLD');
+  expect(result.complete).toBe(false);
+  expect(result.content.length).toBe(0);
+});

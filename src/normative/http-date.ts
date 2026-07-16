@@ -29,6 +29,13 @@ function clock(date: Date): string {
   return `${pad2(date.getUTCHours())}:${pad2(date.getUTCMinutes())}:${pad2(date.getUTCSeconds())}`;
 }
 
+// RFC 9110 §5.6.7 deliberately does NOT require the day-name to match the actual day of week the
+// rest of the timestamp resolves to: "a sender MUST NOT generate additional forms... a recipient
+// that parses a timestamp value in these formats MUST accept... [and] SHOULD only use the day of
+// the week... for information purposes" — robustness over strictness. Any day-name from the listed
+// set is grammar-valid regardless of whether it's the actual weekday for that date; this parser
+// intentionally never cross-validates it. Do NOT add weekday rejection (see the pinning test in
+// http-date.spec.ts).
 const IMF_FIXDATE_RE =
   /^(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat), (\d{2}) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) (\d{4}) (\d{2}):(\d{2}):(\d{2}) GMT$/;
 
@@ -54,25 +61,49 @@ interface DateComponents {
   readonly second: number;
 }
 
-/** Build the epoch instant for `components`, or `null` when any field is out of range (hour
- *  0-23, minute/second 0-59) or the combination is not a real calendar date (e.g. 31 February) —
- *  `Date.UTC` silently normalizes overflow (rolling 31 Feb into 3 Mar), so the round-tripped
- *  components are compared back against the input to catch that. */
+/** Build the epoch instant for `components`, or `null` when any field is out of range (hour 0-23,
+ *  minute 0-59, second 0-60 — see the leap-second note below) or the combination is not a real
+ *  calendar date (e.g. 31 February).
+ *
+ *  Two ECMAScript `Date` quirks are worked around, neither by `Date.UTC`/the multi-arg `Date`
+ *  constructor directly:
+ *  - Overflow normalization: passing an out-of-range day/month silently rolls over (31 Feb becomes
+ *    3 Mar) instead of erroring, so the round-tripped components are compared back against the
+ *    input to catch that.
+ *  - The legacy 2-digit-year remap: `Date.UTC`/`new Date(y, ...)` remap a `year` of 0-99 into
+ *    1900-1999. `setUTCFullYear` has no such remap, so the instant is built via a zero epoch and
+ *    every UTC component set explicitly instead.
+ *
+ *  RFC 9110 §5.6.7's time-of-day is explicitly `second = 2DIGIT` ranging 00-60, the 60th value
+ *  accounting for a positive leap second (which `Date` itself cannot represent). `:60` is treated
+ *  as one second past that same minute's `:59` — the calendar-validity round-trip below still runs
+ *  against the real `:59` components, and the extra second is added only once that's confirmed
+ *  valid, so a leap second can still roll into the next minute/hour/day/month/year exactly as
+ *  ordinary clock arithmetic would. */
 function componentsToEpoch(components: DateComponents): number | null {
   const { year, monthIndex, day, hour, minute, second } = components;
-  if (hour > 23 || minute > 59 || second > 59) {
+  if (hour > 23 || minute > 59 || second > 60) {
     return null;
   }
-  const ms = Date.UTC(year, monthIndex, day, hour, minute, second);
-  const check = new Date(ms);
+  const isLeapSecond = second === 60;
+  const checkedSecond = isLeapSecond ? 59 : second;
+
+  const check = new Date(0);
+  check.setUTCFullYear(year, monthIndex, day);
+  check.setUTCHours(hour, minute, checkedSecond, 0);
+
   const roundTrips =
     check.getUTCFullYear() === year &&
     check.getUTCMonth() === monthIndex &&
     check.getUTCDate() === day &&
     check.getUTCHours() === hour &&
     check.getUTCMinutes() === minute &&
-    check.getUTCSeconds() === second;
-  return roundTrips ? ms : null;
+    check.getUTCSeconds() === checkedSecond;
+  if (!roundTrips) {
+    return null;
+  }
+  const ms = check.getTime();
+  return isLeapSecond ? ms + 1000 : ms;
 }
 
 function parseImfFixdate(value: string): number | null {

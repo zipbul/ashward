@@ -24,6 +24,18 @@ test('fails when the combined probe answers 412 — If-Unmodified-Since was eval
   expect(out.verdict).toBe(Verdict.Fail);
 });
 
+// MINOR 5 — an unexpected status (neither the passing 200 nor the disqualifying 412) is not itself
+// evidence the origin evaluated the ignored If-Unmodified-Since — it's evidence the endpoint didn't
+// behave predictably for this probe at all, same as every sibling C-rule's "unexpected -> Skip"
+// shape (see e.g. if-unmodified-since-false-not-performed.ts). Bucketing it as a §4.3 Fail would be
+// a false positive. A Skip verdict is non-disqualifying, so the kit never sends a RE-DISCOVER for
+// it — only the discover + combined-probe responses are needed here.
+test('is skipped as endpoint-unstable when the combined probe answers neither 200 nor 412', async () => {
+  const out = await run(res('200 OK', LAST_MODIFIED), res('404 Not Found'));
+  expect(out.verdict).toBe(Verdict.Skip);
+  expect(out.reason).toBe(SkipReason.EndpointUnstable);
+});
+
 test('is skipped with no-validator when the discovered representation carries no Last-Modified', async () => {
   const out = await run(res('200 OK'));
   expect(out.verdict).toBe(Verdict.Skip);

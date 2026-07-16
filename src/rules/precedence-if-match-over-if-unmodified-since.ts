@@ -42,6 +42,15 @@ export const precedenceIfMatchOverIfUnmodifiedSince = defineConditionalRule({
     ];
   },
   judge(_discovered, probed) {
-    return { verdict: probed[0]?.status === 200 ? Verdict.Pass : Verdict.Fail };
+    const status = probed[0]?.status;
+    if (status === 200) {
+      return { verdict: Verdict.Pass };
+    }
+    if (status === 412) {
+      return { verdict: Verdict.Fail };
+    }
+    // Neither the expected-pass 200 nor the disqualifying 412: the endpoint didn't behave
+    // predictably for this probe at all — not itself evidence If-Unmodified-Since was evaluated.
+    return { verdict: Verdict.Skip, reason: SkipReason.EndpointUnstable };
   },
 });

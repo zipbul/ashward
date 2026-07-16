@@ -68,9 +68,19 @@ interface ConditionalRuleSpec {
    *  itself part of discovery, per PLAN §2f/§5. */
   readonly discoverProbes?: readonly ConditionalProbeSpec[];
   /** Validator-guard rules record the response header name(s) their `gate`/`judge` key off — the kit
-   *  reads these to drive the RE-DISCOVER drift comparison (see `guard`'s doc). Required (may be
+   *  reads these to drive the RE-DISCOVER drift comparison (see `guard`'s doc): every value sent
+   *  under each name must be BYTE-IDENTICAL between discover and re-discover. Required (may be
    *  empty) when `guard: 'validator'`. */
   readonly validatorHeaders?: readonly string[];
+  /** Validator-guard only: header name(s) whose RE-DISCOVER drift check is PRESENCE-only, not exact
+   *  value — e.g. `Date` (RFC 9110 §6.6.1), which legitimately advances every second on a live
+   *  origin. A name here is confirmed merely "still sent, if it was sent at discover time"; its
+   *  value is never compared. Without this split, a validator-guard rule that (rightly) depends on
+   *  `Date`'s PRESENCE for its own judge logic would have to list `Date` in `validatorHeaders` to get
+   *  it re-checked at all — which would then downgrade every disqualifying verdict to
+   *  Skip(EndpointUnstable) as soon as the clock ticked between discover and re-discover, even when
+   *  the actual judged condition (e.g. a missing `Vary`) hasn't drifted at all. */
+  readonly validatorPresenceHeaders?: readonly string[];
   /** Existence-guard only: the baseline status predicate every discover exchange must agree on —
    *  e.g. "is 200" (C2), "is not 304/412" (C13), "is not 2xx/304/412" (C14). Required when
    *  `guard: 'existence'`. */
@@ -190,21 +200,42 @@ function sameFieldValues(before: ConditionalExchange, after: ConditionalExchange
   return beforeValues.length === afterValues.length && beforeValues.every((value, index) => value === afterValues[index]);
 }
 
+/** Whether `name` was sent at all on `exchange`'s head (any number of times) — presence, not value.
+ *  REPEATED-field-aware for the same reason `sameFieldValues` is: a `headerOf`/`singleFieldValue`
+ *  read would collapse a repeated field to "absent". */
+function fieldPresent(exchange: ConditionalExchange, name: string): boolean {
+  return fieldValues(exchange.head, name).length > 0;
+}
+
+/** Presence-only RE-DISCOVER agreement for one field: it never disappears — if `before` sent it,
+ *  `after` must still send it. `before` NOT sending it is not itself drift (an origin that never
+ *  sent the field, e.g. a clockless `Date`, is unaffected either way), and `after` sending it when
+ *  `before` didn't is likewise not drift the judge depends on — only "went from sent to unsent"
+ *  invalidates a Fail/Warn that was read off the field's presence. */
+function fieldPresenceStable(before: ConditionalExchange, after: ConditionalExchange, name: string): boolean {
+  return !fieldPresent(before, name) || fieldPresent(after, name);
+}
+
 /** Validator-guard RE-DISCOVER agreement: the fresh baseline's status is identical to the original
- *  discover, AND every named validator header carries the identical value(s) on both — a drift in
- *  either (e.g. the resource moved on to a new `ETag`, or a field present at discover time is gone
- *  by re-discover time) means the judge's tentative Fail/Warn was read off a baseline that no longer
- *  holds. Compares via `fieldValues` arrays, never `headerOf`, so a repeated field's drift is caught
- *  instead of masked by both sides collapsing to `null`. */
+ *  discover, every `exactNames` header carries the identical value(s) on both (a drift — e.g. the
+ *  resource moved on to a new `ETag` — means the judge's tentative Fail/Warn was read off a baseline
+ *  that no longer holds), and every `presenceNames` header's presence (never its value — see
+ *  `validatorPresenceHeaders`'s doc) hasn't been lost. Compares via `fieldValues` arrays, never
+ *  `headerOf`, so a repeated field's drift is caught instead of masked by both sides collapsing to
+ *  `null`. */
 function validatorStable(
-  names: readonly string[],
+  exactNames: readonly string[],
+  presenceNames: readonly string[],
   before: ConditionalExchange | undefined,
   after: ConditionalExchange | undefined,
 ): boolean {
   if (before === undefined || after === undefined || before.status !== after.status) {
     return false;
   }
-  return names.every(name => sameFieldValues(before, after, name));
+  return (
+    exactNames.every(name => sameFieldValues(before, after, name)) &&
+    presenceNames.every(name => fieldPresenceStable(before, after, name))
+  );
 }
 
 /**
@@ -298,7 +329,7 @@ export function defineConditionalRule(spec: ConditionalRuleSpec): RuleDef<HttpRu
         spec.guard === 'existence'
           ? existenceStable(spec.expectedBaselineStatus ?? (() => true), reconfirmed) &&
             reconfirmed[0]?.status === discovered[0]?.status
-          : validatorStable(spec.validatorHeaders ?? [], discovered[0], reconfirmed[0]);
+          : validatorStable(spec.validatorHeaders ?? [], spec.validatorPresenceHeaders ?? [], discovered[0], reconfirmed[0]);
       if (!stable) {
         return { ruleId: spec.id, verdict: Verdict.Skip, reason: SkipReason.EndpointUnstable, ...reconfirmEvidence };
       }

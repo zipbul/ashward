@@ -13,6 +13,15 @@ import { defineConditionalRule, headerOf } from './kit/conditional-rule';
  *  be clockless (§6.6.1), which is not itself a fault. */
 const REQUIRED_HEADERS: readonly string[] = [ETAG, CACHE_CONTROL, VARY, EXPIRES, CONTENT_LOCATION, DATE];
 
+/** The `REQUIRED_HEADERS` subset whose exact VALUE must stay identical across the kit's RE-DISCOVER
+ *  stability guard: a value drift here (a new `ETag`, a changed `Cache-Control`) means the baseline
+ *  this rule's tentative Fail was read off no longer holds. `Date` is deliberately excluded — see
+ *  `not-modified-required-headers`'s doc and `validatorPresenceHeaders` below; it is re-confirmed by
+ *  presence only, because its VALUE legitimately advances every second on a live origin and would
+ *  otherwise downgrade an unrelated, genuine required-header Fail to Skip(EndpointUnstable) purely
+ *  because the clock ticked between discover and re-discover. */
+const EXACT_VALUE_HEADERS: readonly string[] = [ETAG, CACHE_CONTROL, VARY, EXPIRES, CONTENT_LOCATION];
+
 /** Whether `name` was sent at all on `exchange`'s head — REPEATED-field-aware (unlike `headerOf`/
  *  `singleFieldValue`, which collapses a repeated field to "absent"). A multi-line `Cache-Control`/
  *  `Vary` the discovered 200 sent must still count as "sent" for the required-header check; only
@@ -26,16 +35,18 @@ function wasSent(exchange: ConditionalExchange | undefined, name: string): boole
  * `ETag`/`Cache-Control`/`Vary`/`Expires`/`Content-Location`/`Date` that the discovered 200 sent.
  * Couldn't elicit a 304 at all → Skip(NotApplicable), not a false Fail on an unrelated non-304
  * outcome. Before this Fail stands, the kit's validator-guard RE-DISCOVER confirms the FULL
- * §6.1.2 set this Fail depends on — every header in `REQUIRED_HEADERS`, not just `ETag` — hasn't
- * drifted underneath the probe; a field the judge relied on dropping out between discover and
- * re-discover downgrades to Skip(EndpointUnstable) rather than letting the Fail stand on stale
- * metadata.
+ * §6.1.2 set this Fail depends on hasn't drifted underneath the probe: `EXACT_VALUE_HEADERS`
+ * (ETag/Cache-Control/Vary/Expires/Content-Location) must be byte-identical, and `Date` must still
+ * be present if it was present at discover time (its VALUE is never compared — see
+ * `EXACT_VALUE_HEADERS`'s doc). Either kind of drift downgrades to Skip(EndpointUnstable) rather
+ * than letting the Fail stand on stale metadata.
  */
 export const notModifiedRequiredHeaders = defineConditionalRule({
   id: Rule.NotModifiedRequiredHeaders,
   normative: refsFor(ConditionalClauseId.NotModifiedRequiredHeaders),
   guard: 'validator',
-  validatorHeaders: REQUIRED_HEADERS,
+  validatorHeaders: EXACT_VALUE_HEADERS,
+  validatorPresenceHeaders: [DATE],
   gate(discovered) {
     const [baseline] = discovered;
     if (baseline?.status !== 200) {

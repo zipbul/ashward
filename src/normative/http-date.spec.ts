@@ -45,6 +45,14 @@ test('rejects a lowercase day-name — the grammar is case-sensitive', () => {
   expect(parseHttpDate('sun, 06 Nov 1994 08:49:37 GMT')).toBeNull();
 });
 
+// MINOR 7 — RFC 9110 §5.6.7 intentionally does NOT require the day-name to match the actual weekday
+// the rest of the timestamp resolves to (be robust in what you accept). 1994-11-06 was actually a
+// Sunday, but a WRONG-but-listed day-name ("Mon") must still parse to the same instant — pinning
+// this is deliberate: do NOT add weekday cross-validation.
+test('accepts any listed day-name regardless of whether it matches the actual weekday for that date', () => {
+  expect(parseHttpDate('Mon, 06 Nov 1994 08:49:37 GMT')).toBe(EXAMPLE_MS);
+});
+
 test('rejects an IMF-fixdate with a 2-digit year', () => {
   expect(parseHttpDate('Sun, 06 Nov 94 08:49:37 GMT')).toBeNull();
 });
@@ -59,6 +67,30 @@ test('rejects an out-of-range hour (24)', () => {
 
 test('rejects an out-of-range minute (60)', () => {
   expect(parseHttpDate('Sun, 06 Nov 1994 08:60:37 GMT')).toBeNull();
+});
+
+// MAJOR 3 — RFC 9110 §5.6.7: time-of-day's second is explicitly 00-60, the 60th value accounting
+// for a positive leap second. A strict parser that rejects `:60` outright would refuse a
+// grammar-valid, RFC-anticipated timestamp an origin is entitled to send.
+test('accepts a leap second (second == 60)', () => {
+  expect(parseHttpDate('Sun, 06 Nov 1994 23:59:60 GMT')).not.toBeNull();
+});
+
+test('still rejects an out-of-range second (61) — leap seconds go no further than :60', () => {
+  expect(parseHttpDate('Sun, 06 Nov 1994 23:59:61 GMT')).toBeNull();
+});
+
+test('still rejects an out-of-range hour (24) after admitting the leap second', () => {
+  expect(parseHttpDate('Sun, 06 Nov 1994 24:00:00 GMT')).toBeNull();
+});
+
+// MAJOR 4 — `Date.UTC`/the multi-arg `Date` constructor remap a 2-digit-ish year (0-99) into
+// 1900-1999, an ECMAScript legacy quirk. A grammar-valid 4-digit IMF-fixdate year in that range
+// (e.g. `0050`) must round-trip to its own year, not silently become 1950.
+test('parses a 4-digit IMF-fixdate year in the 0000-0099 range without the legacy 19xx remap', () => {
+  const parsed = parseHttpDate('Fri, 06 Nov 0050 08:49:37 GMT');
+  expect(parsed).not.toBeNull();
+  expect(new Date(parsed!).getUTCFullYear()).toBe(50);
 });
 
 test('rejects garbage input outright', () => {

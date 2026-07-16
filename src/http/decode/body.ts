@@ -35,10 +35,14 @@ type ContentLengthResult =
 /**
  * RFC 9112 §6.3: Content-Length may repeat either as separate field LINES or as one
  * comma-coalesced list within a single field value (e.g. `Content-Length: 5, 5`, RFC 9110 §5.3) —
- * both are the same "repeated field" case and must agree the same way. Every member of every
- * value must be a non-negative integer, and every member across every value must agree —
- * disagreement makes the message length ambiguous, which MUST NOT be silently resolved by reading
- * to EOF. A single invalid (non-numeric) member is simply treated as absent, same as before.
+ * both are the same "repeated field" case and must agree the same way. RFC 9110 §5.6.1's list
+ * grammar tolerates EMPTY members (leading, trailing, or consecutive commas) — those are skipped,
+ * never treated as invalid. Every REMAINING (non-empty) member must be a safe non-negative decimal
+ * integer; a member that isn't (non-numeric, or containing anything but digits — e.g. internal
+ * whitespace) makes the length ambiguous, same as disagreeing members — NEITHER is silently
+ * resolved by falling back to close-delimited framing (which would over-read past the boundary a
+ * malformed-but-present Content-Length was trying to declare). Only the complete absence of any
+ * Content-Length field is `'absent'`.
  */
 function contentLength(head: ResponseHead): ContentLengthResult {
   const values = fieldValues(head, CONTENT_LENGTH);
@@ -47,19 +51,28 @@ function contentLength(head: ResponseHead): ContentLengthResult {
   }
 
   const lengths = new Set<number>();
+  let sawMember = false;
   for (const value of values) {
-    for (const member of value.split(',').map(part => part.trim())) {
+    for (const rawMember of value.split(',')) {
+      const member = rawMember.trim();
+      if (member.length === 0) {
+        continue; // RFC 9110 §5.6.1: empty list elements are tolerated, not significant
+      }
+      sawMember = true;
       if (!/^\d+$/.test(member)) {
-        return { kind: 'absent' };
+        return { kind: 'ambiguous' };
       }
       const length = Number(member);
       if (!Number.isSafeInteger(length)) {
-        return { kind: 'absent' };
+        return { kind: 'ambiguous' };
       }
       lengths.add(length);
     }
   }
 
+  if (!sawMember) {
+    return { kind: 'ambiguous' }; // field present but every member was empty — not the same as absent
+  }
   return lengths.size === 1 ? { kind: 'value', length: [...lengths][0]! } : { kind: 'ambiguous' };
 }
 

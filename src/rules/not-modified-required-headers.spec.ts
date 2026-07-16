@@ -52,11 +52,31 @@ test('fails when the elicited 304 drops a header the discovered 200 sent as a RE
 
 // MAJOR — §6.1.2's Date field is now part of C11's guarded set (moved out of the untestable
 // residue): a 304 must carry Date whenever the discovered 200 sent it.
+// De-tautologized: the re-discover's `Date` is DELIBERATELY one second later than discover's, not
+// frozen to the same literal value — `Date` is checked for re-confirm PRESENCE only (§6.6.1: its
+// exact value is irrelevant to the §6.1.2 judgment and legitimately advances on a live origin). A
+// spec that freezes the same `Date` string on both sides can't tell a presence-only re-confirm
+// apart from a byte-identical one; this one can.
 test('fails when the elicited 304 omits Date and the discovered 200 sent it', async () => {
   const out = await run(
     res('200 OK', `${FULL_METADATA}\r\nDate: Sun, 06 Nov 1994 08:49:37 GMT`),
     res('304 Not Modified', FULL_METADATA),
-    res('200 OK', `${FULL_METADATA}\r\nDate: Sun, 06 Nov 1994 08:49:37 GMT`),
+    res('200 OK', `${FULL_METADATA}\r\nDate: Sun, 06 Nov 1994 08:49:38 GMT`),
+  );
+  expect(out.verdict).toBe(Verdict.Fail);
+});
+
+// BLOCKER 1 — the previous fix widened the re-discover guard to re-confirm the FULL §6.1.2 set
+// BYTE-IDENTICALLY, including `Date` — but `Date` legitimately advances every second on a live
+// origin. That downgrades ANY tentative C11 Fail (even a real missing-`Vary` violation) to
+// Skip(EndpointUnstable) merely because the origin's clock ticked between discover and re-discover.
+// `Date` must be re-confirmed by PRESENCE only; a genuine missing-`Vary` Fail must stand when only
+// `Date` changed by 1 second.
+test('a genuine missing-Vary Fail stands even though Date advances by 1 second between discover and re-discover', async () => {
+  const out = await run(
+    res('200 OK', 'ETag: "v1"\r\nVary: Accept-Encoding\r\nDate: Sun, 06 Nov 1994 08:49:37 GMT'), // discover: Vary + Date=T
+    res('304 Not Modified', 'ETag: "v1"\r\nDate: Sun, 06 Nov 1994 08:49:37 GMT'), // 304 drops Vary -> tentative Fail
+    res('200 OK', 'ETag: "v1"\r\nVary: Accept-Encoding\r\nDate: Sun, 06 Nov 1994 08:49:38 GMT'), // re-discover: Vary present, Date=T+1s
   );
   expect(out.verdict).toBe(Verdict.Fail);
 });
