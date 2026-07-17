@@ -15,4 +15,7 @@ export interface HeaderField {
 export interface ResponseHead {
   readonly statusLine: StatusLine;
   readonly fields: readonly HeaderField[];
+  /** Byte index in the raw response where the body begins (just past the head-terminating
+   *  CRLFCRLF). Optional so a hand-built `ResponseHead` (e.g. in tests) still typechecks. */
+  readonly bodyOffset?: number;
 }

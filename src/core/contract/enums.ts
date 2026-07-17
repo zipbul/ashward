@@ -13,6 +13,7 @@ export enum InconclusiveReason {
   AmbiguousFraming = 'ambiguous-framing',
   MalformedResponse = 'malformed-response',
   DriverError = 'driver-error',
+  IncompleteMessage = 'incomplete-message',
 }
 
 /**
@@ -21,6 +22,16 @@ export enum InconclusiveReason {
  */
 export enum SkipReason {
   HeaderAbsent = 'header-absent',
+  NotApplicable = 'not-applicable',
+  NotNegotiated = 'not-negotiated',
+  NotCacheable = 'not-cacheable',
+  StackedCoding = 'stacked-coding',
+  EndpointNotReflecting = 'endpoint-not-reflecting',
+  EndpointUnstable = 'endpoint-unstable',
+  NotCompressed = 'not-compressed',
+  SameRepresentation = 'same-representation',
+  NoValidator = 'no-validator',
+  OutOfScope = 'out-of-scope',
 }
 
 /**
@@ -69,4 +80,45 @@ export enum Rule {
   // Security heuristics (not STANDARDS MUSTs — §2.2 says reflection passes the CORS check)
   OriginReflection = 'origin-reflection',
   NullOrigin = 'null-origin',
+
+  // Compression (RFC 9110 §8.4/§12.5.5/§8.8, RFC 1950/1952, RFC 8878/9659)
+  ContentEncodingNoIdentityToken = 'content-encoding-no-identity-token',
+  NoContentEncodingOnBodilessResponse = 'no-content-encoding-on-bodiless-response',
+  VaryAcceptEncodingOnNegotiated = 'vary-accept-encoding-on-negotiated',
+  CompressedEtagWeakOrDistinct = 'compressed-etag-weak-or-distinct',
+  GzipFormatValid = 'gzip-format-valid',
+  DeflateZlibWrapped = 'deflate-zlib-wrapped',
+  ZstdWindowWithinHttpCap = 'zstd-window-within-http-cap',
+  ZstdReservedBitsZero = 'zstd-reserved-bits-zero',
+
+  // Query-parser (RFC 3986, WHATWG URL) — robustness heuristics (Q1-Q4)
+  MalformedPercentNoHardFail = 'malformed-percent-no-hard-fail',
+  InvalidUtf8NoHardFail = 'invalid-utf8-no-hard-fail',
+  NulByteNoHardFail = 'nul-byte-no-hard-fail',
+  PrototypePollutionNoCrash = 'prototype-pollution-no-crash',
+  // Query-parser — reflection parse-correctness (Q5-Q11)
+  UrlencodedAmpersandOnlySeparator = 'urlencoded-ampersand-only-separator',
+  UrlencodedFirstEqualsSplits = 'urlencoded-first-equals-splits',
+  UrlencodedEmptyNamePreserved = 'urlencoded-empty-name-preserved',
+  UrlencodedPlusIsSpace = 'urlencoded-plus-is-space',
+  UriGenericPlusIsLiteral = 'uri-generic-plus-is-literal',
+  UrlencodedUtf8Replacement = 'urlencoded-utf8-replacement',
+  UrlencodedMalformedPercentPreserved = 'urlencoded-malformed-percent-preserved',
+  UrlencodedEmptySequenceSkipped = 'urlencoded-empty-sequence-skipped',
+
+  // Conditional-request (RFC 9110 §13) — C1-C14
+  IfNoneMatchNotModified = 'if-none-match-not-modified',
+  IfNoneMatchStarNotModified = 'if-none-match-star-not-modified',
+  IfNoneMatchWeakComparison = 'if-none-match-weak-comparison',
+  IfMatchFalseNotPerformed = 'if-match-false-not-performed',
+  IfMatchStrongComparison = 'if-match-strong-comparison',
+  IfUnmodifiedSinceFalseNotPerformed = 'if-unmodified-since-false-not-performed',
+  IfModifiedSinceNotModified = 'if-modified-since-not-modified',
+  HttpDateFormatsAccepted = 'http-date-formats-accepted',
+  PrecedenceIfNoneMatchOverIfModifiedSince = 'precedence-if-none-match-over-if-modified-since',
+  PrecedenceIfMatchOverIfUnmodifiedSince = 'precedence-if-match-over-if-unmodified-since',
+  NotModifiedRequiredHeaders = 'not-modified-required-headers',
+  NotModifiedNoContent = 'not-modified-no-content',
+  ConditionalIgnoredOnNonSelectingMethod = 'conditional-ignored-on-non-selecting-method',
+  ConditionalIgnoredOnErrorStatus = 'conditional-ignored-on-error-status',
 }

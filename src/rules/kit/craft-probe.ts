@@ -68,4 +68,21 @@ export function craftProbe(target: HttpTarget, probe: ProbeSpec): Uint8Array {
   return craftRequest({ method: probe.method ?? 'GET', target: target.path, host, headers });
 }
 
+/** Append raw query octets to a request-target path without EVER doubling a query: if `path`
+ *  already carries a `?query` (e.g. `resolveTarget` folded the URL's own `search` into it), the
+ *  vector is joined with `&` as an additional pair, never with a second literal `?`. */
+export function appendRawQuery(path: string, rawQuery: string): string {
+  return `${path}${path.includes('?') ? '&' : '?'}${rawQuery}`;
+}
+
+/** Strip any existing `?query` off a request-target path, keeping only the path portion. A rule that
+ *  must control the WHOLE query it sends (e.g. a reflect probe judged against an oracle computed
+ *  from ONLY its own rawQuery) cannot safely `appendRawQuery` onto a path that already carries a
+ *  query: a conformant peer would echo the pre-existing pairs too, which the oracle never accounts
+ *  for — a false Fail against a spec-conformant endpoint. */
+export function stripQuery(path: string): string {
+  const qIndex = path.indexOf('?');
+  return qIndex === -1 ? path : path.slice(0, qIndex);
+}
+
 export type { ProbeSpec, PreflightProbe, SimpleProbe };

@@ -1,0 +1,340 @@
+import { test, expect } from 'bun:test';
+
+import { TerminationCause } from '../../transport/tcp/enums';
+import { decodeBody } from './body';
+import { parseResponseHead } from './head-parse';
+
+const bytes = (s: string): Uint8Array => new TextEncoder().encode(s);
+const text = (u: Uint8Array): string => new TextDecoder().decode(u);
+
+function decode(raw: string, termination?: TerminationCause): ReturnType<typeof decodeBody> {
+  const buffer = bytes(raw);
+  const head = parseResponseHead(buffer);
+  if (head === null) {
+    throw new Error('unparseable head in test fixture');
+  }
+  return decodeBody(buffer, head, termination);
+}
+
+test('de-chunks two chunks terminated by a 0-chunk', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nWiki\r\n5\r\npedia\r\n0\r\n\r\n');
+  expect(text(result.content)).toBe('Wikipedia');
+  expect(result.complete).toBe(true);
+});
+
+test('ignores a chunk-extension on the chunk-size line', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4;ext=1\r\nWiki\r\n0\r\n\r\n');
+  expect(text(result.content)).toBe('Wiki');
+  expect(result.complete).toBe(true);
+});
+
+test('strips a trailer section after the 0-chunk from content', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nWiki\r\n0\r\nX-Trailer: 1\r\n\r\n');
+  expect(text(result.content)).toBe('Wiki');
+  expect(result.complete).toBe(true);
+});
+
+// RFC 9112 §7.1.1: chunk-size = 1*HEXDIG, optionally followed by BWS (SP/HTAB only) then a
+// chunk-ext. A chunk-size line-splitter that uses JS `.trim()` also eats VT, FF, CR, NBSP, and
+// other Unicode whitespace — silently "recovering" a hex size from a malformed line a strict
+// parser rejects, which is the same framing parser-differential already fixed for
+// Content-Length/Transfer-Encoding in this file (request-smuggling risk via chunk-boundary
+// disagreement).
+test('a chunk-size line with a trailing form feed (not BWS) is not decoded as a valid hex size', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\x0C\r\nWiki\r\n0\r\n\r\n');
+  expect(result.content.length).toBe(0);
+  expect(result.complete).toBe(false);
+});
+
+test('a chunk-size line starting with a vertical tab (not BWS) is not decoded as a valid hex size', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n\x0B4\r\nWiki\r\n0\r\n\r\n');
+  expect(result.content.length).toBe(0);
+  expect(result.complete).toBe(false);
+});
+
+test('a chunk-size line with a space (real BWS) before a chunk-extension still recovers the size', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4 ;ext=1\r\nWiki\r\n0\r\n\r\n');
+  expect(text(result.content)).toBe('Wiki');
+  expect(result.complete).toBe(true);
+});
+
+test('a chunk-size line with a tab (real BWS) before a chunk-extension still recovers the size', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\t;ext=1\r\nWiki\r\n0\r\n\r\n');
+  expect(text(result.content)).toBe('Wiki');
+  expect(result.complete).toBe(true);
+});
+
+test('reports incomplete with partial content when truncated mid-chunk', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\na\r\nWiki');
+  expect(text(result.content)).toBe('Wiki');
+  expect(result.complete).toBe(false);
+});
+
+test('reports incomplete when the terminating 0-chunk never arrives', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nWiki\r\n');
+  expect(text(result.content)).toBe('Wiki');
+  expect(result.complete).toBe(false);
+});
+
+test('Content-Length: reads exactly N bytes as complete', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello');
+  expect(text(result.content)).toBe('hello');
+  expect(result.complete).toBe(true);
+});
+
+test('Content-Length: fewer than N bytes available yields the partial content, incomplete', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\nhello');
+  expect(text(result.content)).toBe('hello');
+  expect(result.complete).toBe(false);
+});
+
+test('Content-Length: 0 yields empty content, complete', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n');
+  expect(result.content.length).toBe(0);
+  expect(result.complete).toBe(true);
+});
+
+test('close-delimited: neither Transfer-Encoding nor Content-Length reads to EOF, complete', () => {
+  const result = decode('HTTP/1.1 200 OK\r\n\r\nwhatever is left over');
+  expect(text(result.content)).toBe('whatever is left over');
+  expect(result.complete).toBe(true);
+});
+
+test('de-chunks when chunked is the last coding in Transfer-Encoding', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding: gzip, chunked\r\n\r\n4\r\nWiki\r\n0\r\n\r\n');
+  expect(text(result.content)).toBe('Wiki');
+  expect(result.complete).toBe(true);
+});
+
+test('falls through to close-delimited when chunked is not the last coding', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked, gzip\r\n\r\nraw-bytes-not-dechunked');
+  expect(text(result.content)).toBe('raw-bytes-not-dechunked');
+  expect(result.complete).toBe(true);
+});
+
+// RFC 9110 §5.6.3: OWS is ONLY SP (0x20) and HTAB (0x09). A coding-splitter that uses JS
+// `.trim()` also eats VT, FF, CR, NBSP, and other Unicode whitespace — silently "recovering" the
+// `chunked` token from a value a strict parser rejects, which is a framing parser-differential
+// (request-smuggling risk): the peer and ashward would disagree on whether the body is
+// chunk-framed at all.
+test('a Transfer-Encoding coding with a trailing form feed after "chunked" (not OWS) is not treated as chunked framing', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\x0C\r\n\r\nraw-bytes-not-dechunked');
+  expect(text(result.content)).toBe('raw-bytes-not-dechunked');
+  expect(result.complete).toBe(true);
+});
+
+test('Transfer-Encoding surrounded by HTAB (real OWS) is still chunked', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding:\tchunked\t\r\n\r\n4\r\nWiki\r\n0\r\n\r\n');
+  expect(text(result.content)).toBe('Wiki');
+  expect(result.complete).toBe(true);
+});
+
+test('yields empty content, incomplete, when the head never reached a body boundary', () => {
+  const buffer = bytes('HTTP/1.1 200 OK\r\nContent-Length: 5');
+  const head = parseResponseHead(buffer);
+  expect(head?.bodyOffset).toBeUndefined();
+  const result = decodeBody(buffer, head!);
+  expect(result.content.length).toBe(0);
+  expect(result.complete).toBe(false);
+});
+
+// RFC 9112 §6.3: Transfer-Encoding present with a non-chunked last coding makes the message
+// close-delimited — Content-Length MUST be ignored, not honored.
+test('Transfer-Encoding present and non-chunked overrides Content-Length: reads the full close-delimited body', () => {
+  const raw = 'HTTP/1.1 200 OK\r\nTransfer-Encoding: gzip\r\nContent-Length: 5\r\n\r\n' + 'x'.repeat(20);
+  const result = decode(raw);
+  expect(result.content.length).toBe(20);
+  expect(result.complete).toBe(true);
+});
+
+test('Transfer-Encoding: chunked, gzip (chunked not last) ignores a shorter Content-Length', () => {
+  const raw = 'HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked, gzip\r\nContent-Length: 3\r\n\r\nraw-bytes-not-dechunked';
+  const result = decode(raw);
+  expect(text(result.content)).toBe('raw-bytes-not-dechunked');
+  expect(result.complete).toBe(true);
+});
+
+// A close-delimited body's completeness must reflect how the transport ended, not be assumed true.
+test('close-delimited body is incomplete when the peer reset instead of a clean FIN', () => {
+  const result = decode('HTTP/1.1 200 OK\r\n\r\nsome bytes', TerminationCause.Rst);
+  expect(text(result.content)).toBe('some bytes');
+  expect(result.complete).toBe(false);
+});
+
+test('close-delimited body is complete on a clean FIN', () => {
+  const result = decode('HTTP/1.1 200 OK\r\n\r\nsome bytes', TerminationCause.Fin);
+  expect(text(result.content)).toBe('some bytes');
+  expect(result.complete).toBe(true);
+});
+
+test('close-delimited body defaults to complete when no termination is given', () => {
+  const result = decode('HTTP/1.1 200 OK\r\n\r\nsome bytes');
+  expect(result.complete).toBe(true);
+});
+
+// MAJOR 3 — RFC 9112 §2.2's "a recipient MAY ignore at least one empty line preceding the next
+// message" is a close-delimited-FRAMING tolerance for what comes BEFORE a message on the wire, not
+// a license to delete body octets that already belong to a message the head-parser found. A
+// close-delimited body whose real first bytes happen to be CRLF (or a bare LF) is real content and
+// must survive decoding intact.
+test('close-delimited body starting with CRLF is not stripped — the leading CRLF is real content', () => {
+  const result = decode('HTTP/1.1 200 OK\r\n\r\n\r\nhello');
+  expect(text(result.content)).toBe('\r\nhello');
+  expect(result.complete).toBe(true);
+});
+
+test('close-delimited body starting with a bare LF is not stripped — the leading LF is real content', () => {
+  const result = decode('HTTP/1.1 200 OK\r\n\r\n\nhello');
+  expect(text(result.content)).toBe('\nhello');
+  expect(result.complete).toBe(true);
+});
+
+// RFC 9112 §6.3: repeated Content-Length is only safe when every value agrees.
+test('duplicate identical Content-Length fields are used', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5\r\nContent-Length: 5\r\n\r\nhello');
+  expect(text(result.content)).toBe('hello');
+  expect(result.complete).toBe(true);
+});
+
+test('conflicting Content-Length fields make the message ambiguous, not close-delimited', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5\r\nContent-Length: 10\r\n\r\nhello-world-extra');
+  expect(result.complete).toBe(false);
+});
+
+// MAJOR 4 — RFC 9112 §6.3 lets Content-Length repeat either as separate field LINES or as one
+// comma-coalesced list within a single field value; both must agree the same way. A comma-list
+// value like "5, 5" used to fail the `^\d+$` check outright (treated as absent -> close-delimited,
+// i.e. over-reading past the true content boundary), and a genuinely conflicting list like "5, 10"
+// was silently absent instead of ambiguous.
+test('a comma-coalesced Content-Length list of identical members is accepted — reads exactly the declared length, not the whole close-delimited tail', () => {
+  // If "5, 5" were (wrongly) treated as absent, this would fall through to close-delimited
+  // framing and read the WHOLE remaining buffer ('hello WORLD', 11 bytes) instead of exactly the
+  // 5 bytes Content-Length actually declares — a longer body than 5 bytes is what tells apart a
+  // correct "value: 5" parse from a coincidental absent/close-delimited pass.
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5, 5\r\n\r\nhello WORLD');
+  expect(text(result.content)).toBe('hello');
+  expect(result.complete).toBe(true);
+});
+
+test('a comma-coalesced Content-Length list with differing members is ambiguous, not absent', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5, 10\r\n\r\nhello-world-extra');
+  expect(result.complete).toBe(false);
+});
+
+// Content-Length is a singleton `1*DIGIT` (RFC 9112 §6.2), NOT an ABNF #list — RFC 9110 §5.6.1's
+// "empty list elements are tolerated and skipped" rule does not apply to it. RFC 9112 §6.3 permits
+// recovery only when the field is a comma-joined set of VALID, non-empty, IDENTICAL integers (the
+// sender-coalesced-duplicates case); an empty member makes the value invalid -> unrecoverable
+// framing -> ambiguous. Silently accepting `5,,5` as `5` is a request-smuggling parser-differential:
+// it must never fall through to close-delimited over-read OR to a lenient accepted value.
+test('a comma-coalesced Content-Length list with an EMPTY interior member is ambiguous, not a recoverable value', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5,,5\r\n\r\nhello WORLD');
+  expect(result.complete).toBe(false);
+  expect(result.content.length).toBe(0);
+});
+
+test('a comma-coalesced Content-Length list with a TRAILING empty member is ambiguous, not a recoverable value', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5,\r\n\r\nhello WORLD');
+  expect(result.complete).toBe(false);
+  expect(result.content.length).toBe(0);
+});
+
+test('a comma-coalesced Content-Length list with a LEADING empty member is ambiguous, not a recoverable value', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: ,5\r\n\r\nhello WORLD');
+  expect(result.complete).toBe(false);
+  expect(result.content.length).toBe(0);
+});
+
+test('a Content-Length value of only commas (all-empty members) is ambiguous, not a recoverable value', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: ,,\r\n\r\nhello WORLD');
+  expect(result.complete).toBe(false);
+  expect(result.content.length).toBe(0);
+});
+
+// An INVALID non-empty member (not a decimal-digit run) must make the message ambiguous — never
+// silently bucketed as "absent", which would fall through to close-delimited framing and over-read
+// past the boundary the (partially valid) Content-Length was trying to declare.
+test('a comma-coalesced Content-Length list with a non-numeric member is ambiguous, not absent (no close-delimited over-read)', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5,abc\r\n\r\nhello WORLD');
+  expect(result.complete).toBe(false);
+  expect(result.content.length).toBe(0);
+});
+
+test('a Content-Length member containing internal whitespace ("5 5") is ambiguous, not absent', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5 5\r\n\r\nhello WORLD');
+  expect(result.complete).toBe(false);
+  expect(result.content.length).toBe(0);
+});
+
+// RFC 9110 §5.6.3: OWS is ONLY SP (0x20) and HTAB (0x09). A member-splitter that uses JS
+// `.trim()` also eats VT, FF, CR, NBSP, and other Unicode whitespace — silently "recovering" a
+// length from a malformed value a strict parser rejects, which is a framing parser-differential
+// (request-smuggling risk): the peer and ashward would disagree on the body boundary.
+test('a Content-Length value with a trailing form feed (not OWS) is ambiguous, not silently trimmed to a valid length', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5\x0C\r\n\r\nhello');
+  expect(result.complete).toBe(false);
+  expect(result.content.length).toBe(0);
+});
+
+test('a Content-Length value with a trailing vertical tab (not OWS) is ambiguous, not silently trimmed to a valid length', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5\x0B\r\n\r\nhello');
+  expect(result.complete).toBe(false);
+  expect(result.content.length).toBe(0);
+});
+
+test('a comma-coalesced Content-Length member wrapped in NBSP (not OWS) is ambiguous, not silently trimmed to a valid length', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 5, 5 \r\n\r\nhello WORLD');
+  expect(result.complete).toBe(false);
+  expect(result.content.length).toBe(0);
+});
+
+// A Content-Length member can be a valid, non-empty decimal-digit run and still overflow
+// Number.isSafeInteger (e.g. 20 digits). Accepting it via `Number(member)` would silently
+// truncate/round to an imprecise length, letting the parser and the peer disagree on the body
+// boundary — the same request-smuggling risk as an invalid or disagreeing member, so it must be
+// ambiguous rather than "recovered" as some rounded value.
+test('a Content-Length value that is all digits but overflows Number.isSafeInteger is ambiguous, not silently rounded', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 99999999999999999999\r\n\r\nhello WORLD');
+  expect(result.complete).toBe(false);
+  expect(result.content.length).toBe(0);
+});
+
+// A chunk-size line can be all valid HEXDIG and still overflow Number.isSafeInteger once
+// parsed (14+ hex digits). Continuing to decode past it risks the same imprecise-offset
+// disagreement as an oversized Content-Length, so decodeChunked must stop and report what it
+// already decoded as incomplete rather than trust an imprecise chunk size.
+test('a chunk-size hex value that overflows Number.isSafeInteger stops decoding, keeping prior chunks, incomplete', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nWiki\r\nffffffffffffff\r\nMore\r\n0\r\n\r\n');
+  expect(text(result.content)).toBe('Wiki');
+  expect(result.complete).toBe(false);
+});
+
+// RFC 9112 §7.1: chunk-data MUST be immediately followed by CRLF before the next chunk-size
+// line. When the buffer ends right after the chunk's data with no terminating line at all
+// (no LF anywhere after), the chunk cannot be confirmed well-formed — decodeChunked must report
+// incomplete with whatever prior chunks were already decoded, not assume the data was valid.
+test('chunk data with no CRLF terminator at all before the buffer ends is incomplete, keeping prior chunks', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nWikiX');
+  expect(text(result.content)).toBe('Wiki');
+  expect(result.complete).toBe(false);
+});
+
+// Same RFC 9112 §7.1 requirement, different malformation: bytes immediately after the chunk's
+// data are present but are NOT the CRLF terminator (there is a later CRLF, just not right after
+// the data) — a misdeclared chunk size or corrupted stream. This must not be mistaken for a
+// valid terminator merely because a CRLF eventually appears somewhere further on.
+test('chunk data followed by non-CRLF bytes before the next CRLF is incomplete, keeping prior chunks', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nWikiXY\r\n0\r\n\r\n');
+  expect(text(result.content)).toBe('Wiki');
+  expect(result.complete).toBe(false);
+});
+
+// RFC 9112 §7.1.2: the trailer section after the terminating 0-chunk is itself a series of
+// lines ending in an empty line. When the buffer runs out mid-trailer-line — the 0-chunk arrived,
+// but the trailer's final empty-line terminator never did — the body content is fully decoded
+// (nothing more belongs to it) yet the message as a whole is not complete.
+test('the trailer after the terminating 0-chunk runs out before its final empty line is incomplete', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nWiki\r\n0\r\nX-Trailer: partial');
+  expect(text(result.content)).toBe('Wiki');
+  expect(result.complete).toBe(false);
+});

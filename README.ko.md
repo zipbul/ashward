@@ -87,7 +87,30 @@ await ashward(
 - **캐싱** (§7) — origin에 따라 답이 달라지면 `Vary: Origin`, 정적이면 붙이지 않기.
 - **보안 휴리스틱** — 자격증명 origin 반사, `null` origin grant (CWE-346 / CWE-942).
 
+**응답 압축** (RFC 9110 / 9111 / 9530, RFC 1950 / 1952 / 8878 / 9659) — 와이어 상의 content-coding 준수:
+
+- **헤더** — `Content-Encoding`에 `identity` 토큰 금지, 무본문 상태에 코딩 금지, 협상 리소스에 `Vary: Accept-Encoding`, 코딩본과 비코딩본에 걸쳐 strong `ETag`를 약화하거나 구별.
+- **바이트 포맷** — 올바른 gzip 헤더, zlib 래핑된 `deflate`(raw 아님), 8 MiB HTTP window 상한(RFC 9659) 이내의 `zstd`와 reserved 비트 0 — 전송디코딩된 본문에서 검사.
+
+**x-www-form-urlencoded 쿼리 파싱** (WHATWG URL / Encoding, RFC 3986) — 파싱 결과를 순서쌍 리스트로 되비추는, 사용자가 opt-in한 라우트를 대상으로 판정:
+
+- **견고성 휴리스틱** — 기형 퍼센트 이스케이프, 무효 UTF-8, NUL 바이트, prototype-pollution 벡터가 origin을 크래시시키지 않아야 함(CWE-20 / CWE-1321). 컨트롤 가드로 불안정 엔드포인트 오귀속 방지.
+- **파싱 정확성** — `&`만 분리, 첫 `=`로 분할, `+`→공백(form) vs 리터럴(uri-generic), 무효 UTF-8→U+FFFD, 기형 `%` 보존, 빈 시퀀스 건너뜀, 빈 이름 보존.
+
+**조건부 요청** (RFC 9110 §13) — 발견한 검증자로부터 `304` / `412` / `200`에 대한 사전조건 평가:
+
+- **평가** — `If-None-Match` / `If-Match`(weak vs strong 비교, §8.8.3.2), `If-Modified-Since` / `If-Unmodified-Since`, 세 HTTP-date 포맷, §13.2.2 우선순위.
+- **응답 형태** — `304` 필수 헤더(§15.4.5), `304`에 본문 금지, 비선택 메서드·에러 상태의 무시 규칙.
+
 전체 목록은 `ALL_RULES`로 export되며, 각 규칙은 `rules` 아래 이름으로 접근합니다.
+
+query-parser 리플렉션 규칙은 파싱된 쿼리를 되비추는 라우트가 필요합니다. opt-in으로 넘기고 파싱 모드를 선언하세요(다른 규칙은 URL 자체 경로를 계속 탐침합니다):
+
+```typescript
+await ashward('http://localhost:3000/', ALL_RULES, {
+  reflect: { path: '/echo', mode: 'form' }, // 또는 'uri-generic'
+});
+```
 
 <br>
 

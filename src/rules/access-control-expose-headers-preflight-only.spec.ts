@@ -3,11 +3,10 @@ import { test, expect } from 'bun:test';
 import type { HttpTarget } from '../http/context';
 
 import { SkipReason, Verdict } from '../core/contract/enums';
-import { replay } from '../testkit/replay';
+import { head, replay } from '../testkit/replay';
 import { accessControlExposeHeadersPreflightOnly } from './access-control-expose-headers-preflight-only';
 
 const TARGET: HttpTarget = { host: 'origin.test', port: 80, path: '/', timeoutMs: 500 };
-const head = (fields: string): string => `HTTP/1.1 200 OK\r\n${fields}\r\n\r\n`;
 // Probe order is actual (GET) then preflight (OPTIONS).
 const run = async (actual: string, preflight: string) =>
   accessControlExposeHeadersPreflightOnly.run({ probe: replay(head(actual), head(preflight)), target: TARGET });

@@ -87,7 +87,30 @@ Every rule has a stable, domain-free kebab id (e.g. `access-control-allow-origin
 - **Caching** (§7) — `Vary: Origin` when the answer varies by origin, and not when it's static.
 - **Security heuristics** — credentialed origin reflection and `null`-origin grants (CWE-346 / CWE-942).
 
+**Response compression** (RFC 9110 / 9111 / 9530, RFC 1950 / 1952 / 8878 / 9659) — content-coding conformance on the wire:
+
+- **Headers** — no `identity` token in `Content-Encoding`, no coding on a bodiless status, `Vary: Accept-Encoding` on a negotiated resource, a strong `ETag` weakened or distinguished across the coded and identity representations.
+- **Byte formats** — a well-formed gzip header, zlib-wrapped `deflate` (never raw), and `zstd` within the 8 MiB HTTP window cap (RFC 9659) with reserved bits zero — checked over the transfer-decoded body.
+
+**x-www-form-urlencoded query parsing** (WHATWG URL / Encoding, RFC 3986) — judged against a route you opt in that echoes its parsed query as an ordered pair list:
+
+- **Robustness heuristics** — malformed percent-escapes, invalid UTF-8, NUL bytes, and prototype-pollution vectors must not crash the origin (CWE-20 / CWE-1321), control-guarded so a flaky endpoint can't be blamed.
+- **Parse correctness** — `&`-only separation, first-`=` split, `+`→space (form) vs. literal (uri-generic), U+FFFD on invalid UTF-8, a preserved malformed `%`, skipped empty sequences, and a preserved empty name.
+
+**Conditional requests** (RFC 9110 §13) — precondition evaluation over `304` / `412` / `200`, from the resource's own discovered validators:
+
+- **Evaluation** — `If-None-Match` / `If-Match` (weak vs. strong comparison, §8.8.3.2), `If-Modified-Since` / `If-Unmodified-Since`, all three HTTP-date formats, and the §13.2.2 precedence order.
+- **Response shape** — the required `304` headers (§15.4.5), no content on a `304`, and the ignore rules for non-selecting methods and error statuses.
+
 The full roster is exported as `ALL_RULES` (and each rule by name under `rules`).
+
+The query-parser reflection rules need a route that echoes its parsed query; pass it opt-in and declare the parse mode (every other rule keeps probing the URL's own path):
+
+```typescript
+await ashward('http://localhost:3000/', ALL_RULES, {
+  reflect: { path: '/echo', mode: 'form' }, // or 'uri-generic'
+});
+```
 
 <br>
 

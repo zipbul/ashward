@@ -22,3 +22,28 @@ export const ACCESS_CONTROL_REQUEST_PRIVATE_NETWORK = 'Access-Control-Request-Pr
 export const ACCESS_CONTROL_ALLOW_PRIVATE_NETWORK = 'Access-Control-Allow-Private-Network';
 export const PRIVATE_NETWORK_ACCESS_ID = 'Private-Network-Access-ID';
 export const PRIVATE_NETWORK_ACCESS_NAME = 'Private-Network-Access-Name';
+
+/** Compression (RFC 9110 §8.4/§8.8/§12.5.5). `Accept-Encoding` is a request header; the rest are
+ *  response headers a compression rule reads or negotiates on. */
+export const CONTENT_ENCODING = 'Content-Encoding';
+export const ACCEPT_ENCODING = 'Accept-Encoding';
+export const ETAG = 'ETag';
+export const CACHE_CONTROL = 'Cache-Control';
+
+/** HTTP/1.1 message-framing fields (RFC 9112 §6). */
+export const CONTENT_LENGTH = 'Content-Length';
+export const TRANSFER_ENCODING = 'Transfer-Encoding';
+
+/** Conditional-request fields (RFC 9110 §13 · §8.8). `ETag` and `Cache-Control` are declared above
+ *  (compression already cites them); the rest are new for the conditional-request domain. Request
+ *  fields (`If-*`) and response fields (validators + the 304-required-header set) share one list —
+ *  they are never confused because a rule crafts requests and reads responses through distinct code
+ *  paths. */
+export const IF_MATCH = 'If-Match';
+export const IF_NONE_MATCH = 'If-None-Match';
+export const IF_MODIFIED_SINCE = 'If-Modified-Since';
+export const IF_UNMODIFIED_SINCE = 'If-Unmodified-Since';
+export const LAST_MODIFIED = 'Last-Modified';
+export const DATE = 'Date';
+export const EXPIRES = 'Expires';
+export const CONTENT_LOCATION = 'Content-Location';

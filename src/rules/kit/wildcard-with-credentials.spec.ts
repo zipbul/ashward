@@ -4,7 +4,7 @@ import type { HttpTarget } from '../../http/context';
 
 import { Rule, SkipReason, Verdict } from '../../core/contract/enums';
 import { FetchClauseId } from '../../standards/catalog/fetch';
-import { replay } from '../../testkit/replay';
+import { head, replay } from '../../testkit/replay';
 import { defineWildcardWithCredentialsRule } from './wildcard-with-credentials';
 
 const TARGET: HttpTarget = { host: 'origin.test', port: 80, path: '/', timeoutMs: 500 };
@@ -14,7 +14,6 @@ const rule = defineWildcardWithCredentialsRule({
   probes: [{ kind: 'preflight', origin: 'https://x.test', requestMethod: 'GET' }],
   clauses: [FetchClauseId.CredentialedNoWildcard],
 });
-const head = (fields: string): string => `HTTP/1.1 200 OK\r\n${fields}\r\n\r\n`;
 const run = async (fields: string) => rule.run({ probe: replay(head(fields)), target: TARGET });
 
 test('fails when the header is * and credentials are true', async () => {
