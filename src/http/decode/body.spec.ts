@@ -287,3 +287,54 @@ test('a comma-coalesced Content-Length member wrapped in NBSP (not OWS) is ambig
   expect(result.complete).toBe(false);
   expect(result.content.length).toBe(0);
 });
+
+// A Content-Length member can be a valid, non-empty decimal-digit run and still overflow
+// Number.isSafeInteger (e.g. 20 digits). Accepting it via `Number(member)` would silently
+// truncate/round to an imprecise length, letting the parser and the peer disagree on the body
+// boundary — the same request-smuggling risk as an invalid or disagreeing member, so it must be
+// ambiguous rather than "recovered" as some rounded value.
+test('a Content-Length value that is all digits but overflows Number.isSafeInteger is ambiguous, not silently rounded', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nContent-Length: 99999999999999999999\r\n\r\nhello WORLD');
+  expect(result.complete).toBe(false);
+  expect(result.content.length).toBe(0);
+});
+
+// A chunk-size line can be all valid HEXDIG and still overflow Number.isSafeInteger once
+// parsed (14+ hex digits). Continuing to decode past it risks the same imprecise-offset
+// disagreement as an oversized Content-Length, so decodeChunked must stop and report what it
+// already decoded as incomplete rather than trust an imprecise chunk size.
+test('a chunk-size hex value that overflows Number.isSafeInteger stops decoding, keeping prior chunks, incomplete', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nWiki\r\nffffffffffffff\r\nMore\r\n0\r\n\r\n');
+  expect(text(result.content)).toBe('Wiki');
+  expect(result.complete).toBe(false);
+});
+
+// RFC 9112 §7.1: chunk-data MUST be immediately followed by CRLF before the next chunk-size
+// line. When the buffer ends right after the chunk's data with no terminating line at all
+// (no LF anywhere after), the chunk cannot be confirmed well-formed — decodeChunked must report
+// incomplete with whatever prior chunks were already decoded, not assume the data was valid.
+test('chunk data with no CRLF terminator at all before the buffer ends is incomplete, keeping prior chunks', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nWikiX');
+  expect(text(result.content)).toBe('Wiki');
+  expect(result.complete).toBe(false);
+});
+
+// Same RFC 9112 §7.1 requirement, different malformation: bytes immediately after the chunk's
+// data are present but are NOT the CRLF terminator (there is a later CRLF, just not right after
+// the data) — a misdeclared chunk size or corrupted stream. This must not be mistaken for a
+// valid terminator merely because a CRLF eventually appears somewhere further on.
+test('chunk data followed by non-CRLF bytes before the next CRLF is incomplete, keeping prior chunks', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nWikiXY\r\n0\r\n\r\n');
+  expect(text(result.content)).toBe('Wiki');
+  expect(result.complete).toBe(false);
+});
+
+// RFC 9112 §7.1.2: the trailer section after the terminating 0-chunk is itself a series of
+// lines ending in an empty line. When the buffer runs out mid-trailer-line — the 0-chunk arrived,
+// but the trailer's final empty-line terminator never did — the body content is fully decoded
+// (nothing more belongs to it) yet the message as a whole is not complete.
+test('the trailer after the terminating 0-chunk runs out before its final empty line is incomplete', () => {
+  const result = decode('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nWiki\r\n0\r\nX-Trailer: partial');
+  expect(text(result.content)).toBe('Wiki');
+  expect(result.complete).toBe(false);
+});

@@ -36,6 +36,19 @@ for (const rawQuery of VECTORS) {
   });
 }
 
+// `sentRequest()` hands back the FULL raw bytes crafted (line + headers), distinct from `sentLine()`
+// which only decodes the request-line — the two are independently useful (per capturingProbe's own
+// doc): a test asserting only the line could still miss a wrong/missing header.
+test('sentRequest() exposes the exact full raw request bytes crafted, not just the decoded request line', async () => {
+  const { probe, sentLine, sentRequest } = capturingProbe(`${jsonHead('200 OK')}${JSON.stringify(parseFormUrlencoded('=v'))}`);
+  await urlencodedEmptyNamePreserved.run({ probe, target: TARGET, reflect: { mode: 'form' } });
+
+  const raw = new TextDecoder().decode(sentRequest());
+
+  expect(raw.startsWith(`${sentLine()}\r\n`)).toBe(true);
+  expect(raw).toContain('Host: origin.test\r\n');
+});
+
 test('fails when the echo drops the empty-string-key pair entirely', async () => {
   const out = await urlencodedEmptyNamePreserved.run({
     probe: replay(`${jsonHead('200 OK')}${JSON.stringify([])}`),
